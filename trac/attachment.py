@@ -121,8 +121,9 @@ class Attachment(object):
         self.env = env
         self.parent_realm = self.resource.parent.realm
         self.parent_id = unicode(self.resource.parent.id)
+        self.version = 1
         if self.resource.id:
-            self._fetch(self.resource.id, db)
+            self._fetch(self.resource.id, self.resource.version, db)
         else:
             self.filename = None
             self.description = None
@@ -130,21 +131,39 @@ class Attachment(object):
             self.date = None
             self.author = None
             self.ipnr = None
+            self.status = None
 
     def _set_filename(self, val):
         self.resource.id = val
 
-    filename = property(lambda self: self.resource.id, _set_filename)
+    def _set_version(self, val):
+        self.resource.version = val
 
-    def _fetch(self, filename, db=None):
+    filename = property(lambda self: self.resource.id, _set_filename)
+    version = property(lambda self: self.resource.version, _set_version)
+    
+    def _from_database(self, filename, version, description, size, time,
+                       author, ipnr, status):
+        self.filename = filename
+        self.version = version and int(version) or 0
+        self.description = description
+        self.size = size and int(size) or 0
+        self.date = from_utimestamp(time or 0)
+        self.author = author
+        self.ipnr = ipnr
+        self.status = status
+
+    def _fetch(self, filename, version, db=None):
         if not db:
             db = self.env.get_db_cnx()
         cursor = db.cursor()
         cursor.execute("""
-            SELECT filename,description,size,time,author,ipnr FROM attachment
-            WHERE type=%s AND id=%s AND filename=%s
+            SELECT filename,version,description,size,time,author,ipnr,status
+            FROM attachment
+            WHERE type=%s AND id=%s AND filename=%s AND version=%s
             ORDER BY time
-            """, (self.parent_realm, unicode(self.parent_id), filename))
+            """, (self.parent_realm, unicode(self.parent_id), 
+                  filename, version))
         row = cursor.fetchone()
         cursor.close()
         if not row:
@@ -152,12 +171,7 @@ class Attachment(object):
             raise ResourceNotFound(_("Attachment '%(title)s' does not exist.",
                                      title=self.title),
                                    _('Invalid Attachment'))
-        self.filename = row[0]
-        self.description = row[1]
-        self.size = row[2] and int(row[2]) or 0
-        self.date = from_utimestamp(row[3])
-        self.author = row[4]
-        self.ipnr = row[5]
+        self._from_database(*row)
 
     def _get_path(self, parent_realm, parent_id, filename):
         path = os.path.join(self.env.path, 'attachments', parent_realm,
@@ -181,8 +195,9 @@ class Attachment(object):
         def do_delete(db):
             cursor = db.cursor()
             cursor.execute("DELETE FROM attachment WHERE type=%s AND id=%s "
-                           "AND filename=%s",
-                           (self.parent_realm, self.parent_id, self.filename))
+                           "AND filename=%s AND version=%s",
+                           (self.parent_realm, self.parent_id, 
+                            self.filename, self.version))
             if os.path.isfile(self.path):
                 try:
                     os.unlink(self.path)
@@ -213,9 +228,9 @@ class Attachment(object):
                                   id=new_id))
             cursor.execute("""
                 UPDATE attachment SET type=%s, id=%s
-                WHERE type=%s AND id=%s AND filename=%s
+                WHERE type=%s AND id=%s AND filename=%s AND version=%s
                 """, (new_realm, new_id, self.parent_realm, self.parent_id,
-                      self.filename))
+                      self.filename, self.version))
             dirname = os.path.dirname(new_path)
             if not os.path.exists(dirname):
                 os.makedirs(dirname)
@@ -270,10 +285,11 @@ class Attachment(object):
             def do_insert(db):
                 cursor = db.cursor()
                 cursor.execute("INSERT INTO attachment "
-                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                               (self.parent_realm, self.parent_id, filename,
+                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                               (self.parent_realm, self.parent_id, 
+                                filename, self.version,
                                 self.size, to_utimestamp(t), self.description,
-                                self.author, self.ipnr))
+                                self.author, self.ipnr, self.status))
                 shutil.copyfileobj(fileobj, targetfile)
                 self.resource.id = self.filename = filename
 
@@ -291,17 +307,13 @@ class Attachment(object):
         if not db:
             db = env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("SELECT filename,description,size,time,author,ipnr "
+        cursor.execute("SELECT filename,version,description,size,time,author,"
+                       "ipnr,status "
                        "FROM attachment WHERE type=%s AND id=%s ORDER BY time",
                        (parent_realm, unicode(parent_id)))
-        for filename, description, size, time, author, ipnr in cursor:
+        for row in cursor:
             attachment = Attachment(env, parent_realm, parent_id)
-            attachment.filename = filename
-            attachment.description = description
-            attachment.size = size and int(size) or 0
-            attachment.date = from_utimestamp(time or 0)
-            attachment.author = author
-            attachment.ipnr = ipnr
+            attachment._from_database(*row)
             yield attachment
 
     @classmethod
@@ -493,6 +505,7 @@ class AttachmentModule(Component):
 
         The tuples are in the form (change, realm, id, filename, time,
         description, author). `change` can currently only be `created`.
+        TODO: Version field
         """
         # Traverse attachment directory
         db = self.env.get_db_cnx()
