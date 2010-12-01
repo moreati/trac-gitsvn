@@ -169,6 +169,28 @@ class AttachmentTestCase(unittest.TestCase):
         assert not os.path.exists(path1) and os.path.exists(attachment1.path)
         assert os.path.exists(attachment2.path)
 
+    def test_reparent_versioned(self):
+        attachment1 = Attachment(self.env, 'wiki', 'SomePage')
+        attachment1.insert('foo.txt', StringIO(''), 0)
+        attachment2 = Attachment(self.env, 'wiki', 'SomePage')
+        attachment2.insert('foo.txt', StringIO(''), 0, replace=True)
+
+        # TODO Should 1st select() return versions (2 items), or latests (1)
+        attachments = Attachment.select(self.env, 'wiki', 'SomePage')
+        self.assertEqual(2, len(list(attachments)))
+        attachments = Attachment.select(self.env, 'ticket', 123)
+        self.assertEqual(0, len(list(attachments)))
+        
+        # TODO Should 2nd select() return versions (2 items), or latests (1)
+        attachment1.reparent('ticket', 123)
+        attachments = Attachment.select(self.env, 'wiki', 'SomePage')
+        self.assertEqual(0, len(list(attachments)))
+        attachments = Attachment.select(self.env, 'ticket', 123)
+        self.assertEqual(2, len(list(attachments)))
+
+        # TODO attachment2.{resource, path} is now invalid, does this matter?
+        # TODO Test Listener 
+
     def test_legacy_permission_on_parent(self):
         """Ensure that legacy action tests are done on parent.  As
         `ATTACHMENT_VIEW` maps to `TICKET_VIEW`, the `TICKET_VIEW` is tested

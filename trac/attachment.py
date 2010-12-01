@@ -246,9 +246,9 @@ class Attachment(object):
                                   id=new_id))
             cursor.execute("""
                 UPDATE attachment SET type=%s, id=%s
-                WHERE type=%s AND id=%s AND filename=%s AND version=%s
+                WHERE type=%s AND id=%s AND filename=%s 
                 """, (new_realm, new_id, self.parent_realm, self.parent_id,
-                      self.filename, self.version))
+                      self.filename))
             dirname = os.path.dirname(new_path)
             if not os.path.exists(dirname):
                 os.makedirs(dirname)
