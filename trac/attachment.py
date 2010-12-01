@@ -112,20 +112,23 @@ class ILegacyAttachmentPolicyDelegate(Interface):
 class Attachment(object):
 
     def __init__(self, env, parent_realm_or_attachment_resource,
-                 parent_id=None, filename=None, db=None):
+                 parent_id=None, filename=None, version=None, db=None):
         if isinstance(parent_realm_or_attachment_resource, Resource):
             self.resource = parent_realm_or_attachment_resource
         else:
+            if version:
+                version = int(version)
             self.resource = Resource(parent_realm_or_attachment_resource,
-                                     parent_id).child('attachment', filename)
+                                     parent_id).child('attachment', filename,
+                                                      version)
         self.env = env
         self.parent_realm = self.resource.parent.realm
         self.parent_id = unicode(self.resource.parent.id)
-        self.version = 1
         if self.resource.id:
             self._fetch(self.resource.id, self.resource.version, db)
         else:
             self.filename = None
+            self.version = None
             self.description = None
             self.size = None
             self.date = None
@@ -157,13 +160,24 @@ class Attachment(object):
         if not db:
             db = self.env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("""
-            SELECT filename,version,description,size,time,author,ipnr,status
-            FROM attachment
-            WHERE type=%s AND id=%s AND filename=%s AND version=%s
-            ORDER BY time
-            """, (self.parent_realm, unicode(self.parent_id), 
-                  filename, version))
+        if version is not None:
+            cursor.execute("""
+                    SELECT filename, version, description, size, time,
+                           author, ipnr, status
+                    FROM attachment
+                    WHERE type=%s AND id=%s AND filename=%s AND version=%s
+                    """,
+                    (self.parent_realm, unicode(self.parent_id), 
+                     filename, version))
+        else:
+            cursor.execute("""
+                    SELECT filename, version, description, size, time,
+                           author, ipnr, status
+                    FROM attachment
+                    WHERE type=%s AND id=%s AND filename=%s
+                    ORDER BY version DESC LIMIT 1
+                           """,
+                    (self.parent_realm, unicode(self.parent_id), filename))
         row = cursor.fetchone()
         cursor.close()
         if not row:
@@ -287,11 +301,12 @@ class Attachment(object):
                 cursor.execute("INSERT INTO attachment "
                                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                                (self.parent_realm, self.parent_id, 
-                                filename, self.version,
+                                filename, 1,
                                 self.size, to_utimestamp(t), self.description,
                                 self.author, self.ipnr, self.status))
                 shutil.copyfileobj(fileobj, targetfile)
                 self.resource.id = self.filename = filename
+                self.version = 1 # Automatically sets self.resource.version
 
                 self.env.log.info('New attachment: %s by %s', self.title,
                                   self.author)

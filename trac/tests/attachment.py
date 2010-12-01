@@ -40,9 +40,16 @@ class AttachmentTestCase(unittest.TestCase):
         shutil.rmtree(self.env.path)
         self.env.reset_db()
 
-    def test_version(self):
-        attachment = Attchment(self.env, 'ticket', 42)
-        self.assertEqual(1, attachment.version)
+    def test_new_attachment(self):
+        attachment = Attachment(self.env, 'ticket', 42)
+        self.assertEqual(None, attachment.filename)
+        self.assertEqual(None, attachment.version)
+        self.assertEqual(None, attachment.description)
+        self.assertEqual(None, attachment.size)
+        self.assertEqual(None, attachment.date)
+        self.assertEqual(None, attachment.author)
+        self.assertEqual(None, attachment.ipnr)
+        self.assertEqual(None, attachment.status)
 
     def test_get_path(self):
         attachment = Attachment(self.env, 'ticket', 42)
