@@ -144,7 +144,7 @@ class Attachment(object):
 
     @property
     def exists(self):
-        return self.version > 0
+        return bool(self.filename and self.version > 0)
     
     filename = property(lambda self: self.resource.id, _set_filename)
     version = property(lambda self: self.resource.version, _set_version)
