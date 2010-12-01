@@ -43,7 +43,7 @@ class AttachmentTestCase(unittest.TestCase):
     def test_new_attachment(self):
         attachment = Attachment(self.env, 'ticket', 42)
         self.assertEqual(None, attachment.filename)
-        self.assertEqual(None, attachment.version)
+        self.assertEqual(0, attachment.version)
         self.assertEqual(False, attachment.exists)
         self.assertEqual(None, attachment.description)
         self.assertEqual(None, attachment.size)
@@ -100,6 +100,14 @@ class AttachmentTestCase(unittest.TestCase):
         attachment = Attachment(self.env, 'ticket', 42)
         attachment.insert('foo.txt', StringIO(''), 0)
         self.assertEqual('foo.2.txt', attachment.filename)
+
+    def test_insert_replace(self):
+        attachment = Attachment(self.env, 'ticket', 42)
+        attachment.insert('foo.txt', StringIO(''), 0)
+        attachment = Attachment(self.env, 'ticket', 42)
+        attachment.insert('foo.txt', StringIO(''), 0, replace=True)
+        self.assertEqual('foo.txt', attachment.filename)
+        self.assertEqual(2, attachment.version)
 
     def test_insert_outside_attachments_dir(self):
         attachment = Attachment(self.env, '../../../../../sth/private', 42)

@@ -34,7 +34,7 @@ from trac.mimeview import *
 from trac.perm import PermissionError, IPermissionPolicy
 from trac.resource import *
 from trac.search import search_to_sql, shorten_result
-from trac.util import get_reporter_id, create_unique_file
+from trac.util import get_reporter_id, overwrite_file, create_unique_file
 from trac.util.datefmt import format_datetime, from_utimestamp, \
                               to_datetime, to_utimestamp, utc
 from trac.util.text import exception_to_unicode, pretty_size, print_table, \
@@ -128,7 +128,7 @@ class Attachment(object):
             self._fetch(self.resource.id, self.resource.version, db)
         else:
             self.filename = None
-            self.version = None
+            self.version = 0
             self.description = None
             self.size = None
             self.date = None
@@ -144,7 +144,7 @@ class Attachment(object):
 
     @property
     def exists(self):
-        return self.version is not None and self.version > 0
+        return self.version > 0
     
     filename = property(lambda self: self.resource.id, _set_filename)
     version = property(lambda self: self.resource.version, _set_version)
@@ -273,7 +273,7 @@ class Attachment(object):
             if hasattr(listener, 'attachment_reparented'):
                 listener.attachment_reparented(self, old_realm, old_id)
 
-    def insert(self, filename, fileobj, size, t=None, db=None):
+    def insert(self, filename, fileobj, size, t=None, replace=False, db=None):
         self.size = size and int(size) or 0
         if t is None:
             t = datetime.now(utc)
@@ -291,8 +291,14 @@ class Attachment(object):
         if not os.access(self.path, os.F_OK):
             os.makedirs(self.path)
         filename = unicode_quote(filename)
-        path, targetfile = create_unique_file(os.path.join(self.path,
-                                                           filename))
+        path = os.path.join(self.path, filename)
+        if replace:
+            path, targetfile = overwrite_file(path)
+            version = self.version + 1
+        else:
+            path, targetfile = create_unique_file(path)
+            version = 1
+
         try:
             # Note: `path` is an unicode string because `self.path` was one.
             # As it contains only quoted chars and numbers, we can use `ascii`
@@ -302,15 +308,17 @@ class Attachment(object):
             @self.env.with_transaction(db)
             def do_insert(db):
                 cursor = db.cursor()
+                version = self._next_version(cursor, self.parent_realm,
+                                             self.parent_id, filename)
                 cursor.execute("INSERT INTO attachment "
                                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                                (self.parent_realm, self.parent_id, 
-                                filename, 1,
+                                filename, version,
                                 self.size, to_utimestamp(t), self.description,
                                 self.author, self.ipnr, self.status))
                 shutil.copyfileobj(fileobj, targetfile)
                 self.resource.id = self.filename = filename
-                self.version = 1 # Automatically sets self.resource.version
+                self.version = version # Also sets self.resource.version
 
                 self.env.log.info('New attachment: %s by %s', self.title,
                                   self.author)
@@ -320,6 +328,18 @@ class Attachment(object):
         for listener in AttachmentModule(self.env).change_listeners:
             listener.attachment_added(self)
 
+
+    def _next_version(self, cursor, parent_realm, parent_id, filename):
+        cursor.execute("""SELECT COALESCE(MAX(version), 0) + 1
+                       FROM attachment
+                       WHERE type=%s AND id=%s and filename=%s
+                       """,
+                       (parent_realm, parent_id, filename))
+        row = cursor.fetchone()
+        if row:
+            return row[0]
+        else:
+            return 1
 
     @classmethod
     def select(cls, env, parent_realm, parent_id, db=None):
