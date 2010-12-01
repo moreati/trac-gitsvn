@@ -62,6 +62,9 @@ class IAttachmentChangeListener(Interface):
     def attachment_deleted(attachment):
         """Called when an attachment is deleted."""
 
+    def attachment_version_deleted(attachment):
+        """Called when a particualr version of an attachment is deleted."""
+
     def attachment_reparented(attachment, old_parent_realm, old_parent_id):
         """Called when an attachment is reparented."""
 
@@ -206,16 +209,25 @@ class Attachment(object):
     def title(self):
         return '%s:%s: %s' % (self.parent_realm, self.parent_id, self.filename)
 
-    def delete(self, db=None):
+    def delete(self, version=None, db=None):
         assert self.filename, 'Cannot delete non-existent attachment'
 
         @self.env.with_transaction(db)
         def do_delete(db):
             cursor = db.cursor()
-            cursor.execute("DELETE FROM attachment WHERE type=%s AND id=%s "
-                           "AND filename=%s AND version=%s",
-                           (self.parent_realm, self.parent_id, 
-                            self.filename, self.version))
+            if version is None:
+                cursor.execute("""DELETE from attachment
+                               WHERE type=%s AND id=%s AND filename=%s
+                               """,
+                               (self.parent_realm, self.parent_id,
+                                self.filename))
+            else:
+                cursor.execute("""DELETE FROM attachment 
+                               WHERE type=%s AND id=%s 
+                               AND filename=%s AND version=%s
+                               """,
+                               (self.parent_realm, self.parent_id, 
+                                self.filename, self.version))
             if os.path.isfile(self.path):
                 try:
                     os.unlink(self.path)
@@ -228,8 +240,13 @@ class Attachment(object):
 
         self.env.log.info('Attachment removed: %s' % self.title)
 
-        for listener in AttachmentModule(self.env).change_listeners:
-            listener.attachment_deleted(self)
+        if not version is None:
+            for listener in AttachmentModule(self.env).change_listeners:
+                listener.attachment_deleted(self)
+        else:
+            for listener in AttachmentModule(self.env).change_listeners:
+                if hasattr(listener, 'attachment_version_deleted'):
+                    listener.attachment_version_deleted(self)
 
     def reparent(self, new_realm, new_id):
         assert self.filename, 'Cannot reparent non-existent attachment'

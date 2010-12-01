@@ -176,6 +176,23 @@ class AttachmentTestCase(unittest.TestCase):
 
         attachment.delete()
 
+    def test_delete_version(self):
+        attachment1 = Attachment(self.env, 'wiki', 'SomePage')
+        attachment1.insert('foo.txt', StringIO(''), 0)
+        attachment2 = Attachment(self.env, 'wiki', 'SomePage')
+        attachment2.insert('foo.txt', StringIO(''), 0, replace=True)
+
+        attachment2.delete(version=attachment2.version)
+
+        assert not os.path.exists(attachment1.path) #TODO Break with archiving
+        assert not os.path.exists(attachment1.path) #TODO Break with archiving?
+        #self.assertEqual(True, attachment1.exists)
+        #self.assertEqual(False, attachment2.exists)
+
+        #TODO Should Attachment.select() return versions or not
+        attachments = Attachment.select(self.env, 'wiki', 'SomePage')
+        self.assertEqual(1, len(list(attachments)))
+
     def test_reparent(self):
         attachment1 = Attachment(self.env, 'wiki', 'SomePage')
         attachment1.insert('foo.txt', StringIO(''), 0)
