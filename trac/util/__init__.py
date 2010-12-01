@@ -239,6 +239,15 @@ def create_unique_file(path):
             path = '%s.%d%s' % (parts[0], idx, parts[1])
 
 
+def overwrite_file(path):
+    """Truncate a file and open it for exclusive write in binary mode.
+    """
+    flags = os.O_TRUNC + os.O_WRONLY + os.O_EXCL
+    if hasattr(os, 'O_BINARY'):
+        flags += os.O_BINARY
+    return path, os.fdopen(os.open(path, flags, 0666), 'w')
+
+
 class NaivePopen:
     """This is a deadlock-safe version of popen that returns an object with
     errorlevel, out (a string) and err (a string).

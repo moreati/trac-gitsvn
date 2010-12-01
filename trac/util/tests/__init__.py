@@ -13,6 +13,7 @@
 
 import doctest
 import os.path
+import shutil
 import tempfile
 import unittest
 
@@ -92,11 +93,24 @@ class ContentDispositionTestCase(unittest.TestCase):
         self.assertEqual('inline', util.content_disposition('inline'))
         self.assertEqual('attachment', util.content_disposition('attachment'))
 
+class OverwriteFileTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.path = os.path.join(tempfile.gettempdir(), 'trac-tempfile')
+        os.mkdir(self.path)
+
+    def tearDown(self):
+        shutil.rmtree(self.path)
+
+    def test_overwrite_file(self):
+        filepath = os.path.join(self.path, 'does_not_exist')
+        self.assertRaises(OSError, util.overwrite_file, filepath)
 
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(AtomicFileTestCase, 'test'))
     suite.addTest(unittest.makeSuite(ContentDispositionTestCase, 'test'))
+    suite.addTest(unittest.makeSuite(OverwriteFileTestCase, 'test'))
     suite.addTest(concurrency.suite())
     suite.addTest(datefmt.suite())
     suite.addTest(presentation.suite())
