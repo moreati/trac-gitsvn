@@ -142,6 +142,10 @@ class Attachment(object):
     def _set_version(self, val):
         self.resource.version = val
 
+    @property
+    def exists(self):
+        return self.version is not None and self.version > 0
+    
     filename = property(lambda self: self.resource.id, _set_filename)
     version = property(lambda self: self.resource.version, _set_version)
     

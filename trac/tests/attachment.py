@@ -44,6 +44,7 @@ class AttachmentTestCase(unittest.TestCase):
         attachment = Attachment(self.env, 'ticket', 42)
         self.assertEqual(None, attachment.filename)
         self.assertEqual(None, attachment.version)
+        self.assertEqual(False, attachment.exists)
         self.assertEqual(None, attachment.description)
         self.assertEqual(None, attachment.size)
         self.assertEqual(None, attachment.date)
