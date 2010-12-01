@@ -42,6 +42,14 @@ class ResourceTestCase(unittest.TestCase):
         r2.parent = r2.parent(version=42)
         self.assertNotEqual(r1, r2)
         
+        # Resource hiearchy with version
+        r3 = resource.Resource('wiki', 'WikiStart').child('attachment', 
+                                                          'file.txt')
+        self.assertEqual(r1, r3)
+        r3.version = 42
+        self.assertNotEqual(r1, r3)
+        self.assertEqual(r1.parent, r3.parent)
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(doctest.DocTestSuite(resource))
