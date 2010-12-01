@@ -40,6 +40,10 @@ class AttachmentTestCase(unittest.TestCase):
         shutil.rmtree(self.env.path)
         self.env.reset_db()
 
+    def test_version(self):
+        attachment = Attchment(self.env, 'ticket', 42)
+        self.assertEqual(1, attachment.version)
+
     def test_get_path(self):
         attachment = Attachment(self.env, 'ticket', 42)
         attachment.filename = 'foo.txt'
