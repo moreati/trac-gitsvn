@@ -11,7 +11,7 @@
     <title py:choose="mode">
       <py:when test="'new'">${name_of(parent)} &ndash; Attachment</py:when>
       <py:when test="'list'">${name_of(parent)} &ndash; Attachments</py:when>
-      <py:otherwise><i18n:msg params="filename, parent">${attachment.filename} on ${name_of(parent)} &ndash; Attachment</i18n:msg></py:otherwise>
+      <py:otherwise><i18n:msg params="filename, version, parent">${attachment.filename} version ${attachment.version} on ${name_of(parent)} &ndash; Attachment</i18n:msg></py:otherwise>
     </title>
     <py:if test="preview">
       <script type="text/javascript" src="${chrome.htdocs_location}js/folding.js"></script>
@@ -66,7 +66,7 @@
       </py:when>
 
       <py:when test="'delete'">
-        <h1><a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename</h1>
+        <h1><a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename version $attachment.version</h1>
         <p><strong>Are you sure you want to delete this attachment?</strong><br />
           This is an irreversible operation.</p>
         <div class="buttons">
@@ -89,12 +89,12 @@
       </py:when>
 
       <py:otherwise> <!--! 'render' mode -->
-        <h1><a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename</h1>
+        <h1><a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename version $attachment.version</h1>
         <table id="info" summary="Description">
           <tbody>
             <tr>
-              <th scope="col" i18n:msg="file,size,author,date">
-                File $attachment.filename,
+              <th scope="col" i18n:msg="file,version,size,author,date">
+                File $attachment.filename version $attachment.version,
                 <span title="${_('%(size)s bytes', size=attachment.size)}">${pretty_size(attachment.size)}</span>
                 (added by ${authorinfo(attachment.author)}, ${dateinfo(attachment.date)} ago)
               </th>

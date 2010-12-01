@@ -503,21 +503,23 @@ class AttachmentModule(Component):
         """Return an iterable of tuples describing changes to attachments on
         a particular object realm.
 
-        The tuples are in the form (change, realm, id, filename, time,
-        description, author). `change` can currently only be `created`.
-        TODO: Version field
+        The tuples are in the form (change, realm, id, filename, version, time,
+        description, author, status). `change` can currently only be `created`.
         """
         # Traverse attachment directory
         db = self.env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("SELECT type, id, filename, time, description, author "
+        cursor.execute("SELECT type, id, filename, version, time, description,"
+                       "author, status "
                        "  FROM attachment "
                        "  WHERE time > %s AND time < %s "
                        "        AND type = %s",
                        (to_utimestamp(start), to_utimestamp(stop), realm))
-        for realm, id, filename, ts, description, author in cursor:
+        for (realm, id, filename, version, ts, description, author,
+                status) in cursor:
             time = from_utimestamp(ts)
-            yield ('created', realm, id, filename, time, description, author)
+            yield ('created', realm, id, filename, version, time, description,
+                              author, status)
 
     def get_timeline_events(self, req, resource_realm, start, stop):
         """Return an event generator suitable for ITimelineEventProvider.
@@ -525,7 +527,8 @@ class AttachmentModule(Component):
         Events are changes to attachments on resources of the given
         `resource_realm.realm`.
         """
-        for change, realm, id, filename, time, descr, author in \
+        for (change, realm, id, filename, version, time, descr, author,
+                status) in \
                 self.get_history(start, stop, resource_realm.realm):
             attachment = resource_realm(id=id).child('attachment', filename)
             if 'ATTACHMENT_VIEW' in req.perm(attachment):
