@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from datetime import datetime
 import os.path
 import shutil
 from StringIO import StringIO
@@ -11,6 +12,7 @@ from trac.core import Component, implements
 from trac.perm import IPermissionPolicy, PermissionCache
 from trac.resource import Resource, resource_exists
 from trac.test import EnvironmentStub
+from trac.util.datefmt import utc, to_utimestamp
 
 
 class TicketOnlyViewsTicket(Component):
@@ -50,6 +52,37 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual(None, attachment.date)
         self.assertEqual(None, attachment.author)
         self.assertEqual(None, attachment.ipnr)
+        self.assertEqual(None, attachment.status)
+
+    def test_existing_attachment(self):
+        t = datetime(2001, 1, 1, 1, 1, 1, 0, utc)
+        cursor = self.env.db.cursor()
+        cursor.execute("""INSERT INTO attachment
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                       ('ticket', '42', 'foo.txt', 1, 8, to_utimestamp(t), 
+                        'A comment', 'joe', '::1', None))
+
+        attachment = Attachment(self.env, 'ticket', 42, 'foo.txt')
+        self.assertEqual('foo.txt', attachment.filename)
+        self.assertEqual(1, attachment.version)
+        self.assertEqual(True, attachment.exists)
+        self.assertEqual('A comment', attachment.description)
+        self.assertEqual(8, attachment.size)
+        self.assertEqual(t, attachment.date)
+        self.assertEqual('joe', attachment.author)
+        self.assertEqual('::1', attachment.ipnr)
+        self.assertEqual(None, attachment.status)
+        
+        resource = Resource('ticket', 42).child('attachment', 'foo.txt')
+        attachment = Attachment(self.env, resource)
+        self.assertEqual('foo.txt', attachment.filename)
+        self.assertEqual(1, attachment.version)
+        self.assertEqual(True, attachment.exists)
+        self.assertEqual('A comment', attachment.description)
+        self.assertEqual(8, attachment.size)
+        self.assertEqual(t, attachment.date)
+        self.assertEqual('joe', attachment.author)
+        self.assertEqual('::1', attachment.ipnr)
         self.assertEqual(None, attachment.status)
 
     def test_get_path(self):
