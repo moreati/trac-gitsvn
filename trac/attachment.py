@@ -41,7 +41,7 @@ from trac.util.text import exception_to_unicode, pretty_size, print_table, \
                            unicode_quote, unicode_unquote
 from trac.util.translation import _, tag_
 from trac.web import HTTPBadRequest, IRequestHandler
-from trac.web.chrome import add_link, add_stylesheet, add_ctxtnav, \
+from trac.web.chrome import add_link, add_notice, add_stylesheet, add_ctxtnav, \
                             INavigationContributor
 from trac.web.href import Href
 from trac.wiki.api import IWikiSyntaxProvider
@@ -518,7 +518,8 @@ class AttachmentModule(Component):
         parent_realm = req.args.get('realm')
         path = req.args.get('path')
         filename = None
-        
+        version = req.args.get('version')
+
         if not parent_realm or not path:
             raise HTTPBadRequest(_('Bad request'))
 
@@ -545,14 +546,16 @@ class AttachmentModule(Component):
             return self._render_list(req, parent)
 
         attachment = Attachment(self.env, parent.child('attachment', filename))
+        versioned_attachment = \
+            Attachment(self.env, parent.child('attachment', filename, version))
         
         if req.method == 'POST':
             if action == 'new':
                 self._do_save(req, attachment)
             elif action == 'delete':
-                self._do_delete(req, attachment)
+                self._do_delete(req, versioned_attachment)
         elif action == 'delete':
-            data = self._render_confirm_delete(req, attachment)
+            data = self._render_confirm_delete(req, versioned_attachment)
         elif action == 'new':
             data = self._render_form(req, attachment)
         else:
@@ -801,16 +804,58 @@ class AttachmentModule(Component):
         if 'cancel' in req.args:
             req.redirect(parent_href)
 
-        attachment.delete()
+        version = int(req.args.get('version', 0)) or None
+        old_version = int(req.args.get('old_version', 0)) or version
+
+        @self.env.with_transaction()
+        def do_delete(db):
+            if version and old_version and version > old_version:
+                # delete from `old_version` exclusive to `version` inclusive:
+                for v in range(old_version, version):
+                    attachment.delete(v + 1, db)
+            else:
+                # only delete that `version`, or all versions if `None`
+                attachment.delete(version, db)
+
+        if not attachment.exists:
+            add_notice(req, _('The attachment %(title)s has been deleted.',
+                              title=attachment.title))
+        elif version and old_version and version > old_version + 1:
+            add_notice(req, _('The versions %(from_)d to %(to)d of the '
+                              'attachment %(title)s have been deleted.',
+                              from_=old_version + 1, to=version,
+                              title=attachment.title))
+        else:
+            add_notice(req, _('The version %(version)d of the attachment '
+                              '%(title)s has been deleted.',
+                              version=version, title=attachment.title))
         req.redirect(parent_href)
 
     def _render_confirm_delete(self, req, attachment):
         req.perm(attachment.resource).require('ATTACHMENT_DELETE')
-        return {'mode': 'delete',
+
+        version = None
+        if 'delete_version' in req.args:
+            version = int(req.args.get('version', 0))
+        old_version = int(req.args.get('old_version') or 0) or version
+
+        data = {'new_version':None, 'old_version': None, 'num_versions':0}
+        if version is not None:
+            num_versions = 0
+            for att in attachment.get_history():
+                num_versions += 1
+                if num_versions > 1:
+                    break
+            data.update({'new_version': version, 'old_version': old_version,
+                         'num_versions': num_versions})
+
+        data.update({
+                'mode': 'delete',
                 'title': _('%(attachment)s (delete)',
                            attachment=get_resource_name(self.env,
                                                         attachment.resource)),
-                'attachment': attachment}
+                'attachment': attachment})
+        return data
 
     def _render_form(self, req, attachment):
         req.perm(attachment.resource).require('ATTACHMENT_CREATE')

@@ -65,16 +65,49 @@
         </form>
       </py:when>
 
-      <py:when test="'delete'">
-        <h1><a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename version $attachment.version</h1>
-        <p><strong>Are you sure you want to delete this attachment?</strong><br />
-          This is an irreversible operation.</p>
+      <py:when test="'delete'"
+               py:with="what = (new_version and old_version
+	                     and new_version - old_version &gt; 1) and 'multiple'
+			     or new_version and 'single'
+			     or 'attachment'">
+        <h1 py:choose="what">
+	  <py:when test="'multiple'"><i18n:msg params="from, to, parent, name">
+	    Delete versions ${old_version + 1} to $new_version of <a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename
+          </i18n:msg></py:when>
+	  <py:when test="'single'"><i18n:msg params="version, parent, name">
+	    Delete version $new_version of <a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename
+          </i18n:msg></py:when>
+	  <py:otherwise><i18n:msg params="parent, name">
+            Delete <a href="${url_of(parent)}">${name_of(parent)}</a>: $attachment.filename
+          </i18n:msg></py:otherwise>
+        </h1>
+	<p>
+	  <strong py:choose="what">
+            <py:when test="'multiple'"><i18n:msg params="from, to">
+	      Are you sure you want to delete versions ${old_version + 1} to $new_version of this attachment?
+	    </i18n:msg></py:when>
+	    <py:when test="'single'"><i18n:msg params="version">
+              Are you sure you want to delete version $new_version of this attachment?
+            </i18n:msg></py:when>
+            <py:otherwise>
+              Are you sure you want to delete this attachment?
+            </py:otherwise>
+          </strong><br />
+	  <py:if test="num_versions == 1">
+	    This is the only version of the attachment, so the attachment will be removed completely!
+	  </py:if>
+	  This is an irreversible operation.
+	</p>
         <div class="buttons">
           <form method="post" action="">
             <div id="delete">
+              <input py:if="new_version" type="hidden" name="version" value="$new_version" />
+              <input py:if="old_version" type="hidden" name="old_version" value="$old_version" />
               <input type="hidden" name="action" value="delete" />
               <input type="submit" name="cancel" value="${_('Cancel')}" />
-              <input type="submit" value="${_('Delete attachment')}" />
+              <input type="submit" value="${what == 'multiple' and _('Delete those versions')
+                                          or what == 'single' and _('Delete this version')
+                                          or _('Delete attachment')}" />
             </div>
           </form>
         </div>
@@ -116,6 +149,8 @@
             <form method="get" action="">
               <div id="delete">
                 <input type="hidden" name="action" value="delete" />
+		<input type="hidden" name="version" value="$attachment.version" />
+                <input type="submit" name="delete_version" value="${_('Delete this version')}" />
                 <input type="submit" value="${_('Delete attachment')}" />
               </div>
             </form>
