@@ -360,13 +360,25 @@ class Attachment(object):
 
     @classmethod
     def select(cls, env, parent_realm, parent_id, db=None):
+        """Return attachments of a given resource.
+        """
         if not db:
             db = env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("SELECT filename,version,description,size,time,author,"
-                       "ipnr,status "
-                       "FROM attachment WHERE type=%s AND id=%s ORDER BY time",
-                       (parent_realm, unicode(parent_id)))
+        # Query highest numbered version of each attachment of the resource
+        cursor.execute("""
+                SELECT filename, version, description, size, time, author,
+                       ipnr, status
+                FROM attachment
+                JOIN (SELECT type AS c_type, id AS c_id, 
+                             filename AS c_filename, MAX(version) AS c_version
+                      FROM attachment
+                      GROUP BY c_type, c_id, c_filename)
+                     ON type = c_type AND id = c_id
+                        AND filename = c_filename AND version = c_version
+                WHERE type=%s AND id=%s
+                ORDER BY time""",
+                (parent_realm, unicode(parent_id)))
         for row in cursor:
             attachment = Attachment(env, parent_realm, parent_id)
             attachment._from_database(*row)
