@@ -450,14 +450,14 @@ class AttachmentModule(Component):
         """Create the attachments directory."""
         if self.env.path:
             os.mkdir(os.path.join(self.env.path, 'attachments'))
-            os.mkdir(os.path.join(self.env.path, ARCHIVE_DIR))
+            os.mkdir(os.path.join(self.env.path, self.ARCHIVE_DIR))
 
     def environment_needs_upgrade(self, db):
-        return os.path.exists(os.path.join(self.env.path, ARCHIVE_DIR))
+        return os.path.exists(os.path.join(self.env.path, self.ARCHIVE_DIR))
 
     def upgrade_environment(self, db):
         if self.env.path:
-            os.mkdir(os.path.join(self.env.path, ARCHIVE_DIR))
+            os.mkdir(os.path.join(self.env.path, self.ARCHIVE_DIR))
 
     # INavigationContributor methods
 
