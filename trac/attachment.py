@@ -358,6 +358,26 @@ class Attachment(object):
         else:
             return 1
 
+    def get_history(self):
+        """Return the predecessor versions of this attachment.
+        """
+        db = self.env.get_read_db()
+        cursor = db.cursor()
+        cursor.execute("""
+                SELECT filename, version, description, size, time, author,
+                       ipnr, status
+                FROM ATTACHMENT
+                WHERE type=%s AND id=%s and filename=%s and version<=%s
+                ORDER BY version DESC
+                """,
+                (self.parent_realm, self.parent_id,
+                 self.filename, self.version))
+        for rec in cursor:
+            attachment = Attachment(self.env, self.parent_realm,
+                                    self.parent_id)
+            attachment._from_database(*rec)
+            yield attachment
+
     @classmethod
     def select(cls, env, parent_realm, parent_id, db=None):
         """Return attachments of a given resource.

@@ -149,6 +149,23 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertRaises(AssertionError, attachment.insert, 'foo.txt',
                           StringIO(''), 0)
 
+    def test_get_history(self):
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0)
+
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('bar.jpg', StringIO(''), 0)
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.description = 'New version'
+        attachment.insert('bar.jpg', StringIO(''), 0, replace=True)
+
+        history = list(attachment.get_history())
+        self.assertEqual(2, len(history))
+        self.assertEqual('bar.jpg', history[0].filename)
+        self.assertEqual('New version', history[0].description)
+        self.assertEqual('bar.jpg', history[1].filename)
+        self.assertEqual(None, history[1].description)
+
     def test_delete(self):
         attachment1 = Attachment(self.env, 'wiki', 'SomePage')
         attachment1.insert('foo.txt', StringIO(''), 0)
