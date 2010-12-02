@@ -426,6 +426,7 @@ class AttachmentModule(Component):
     manipulators = ExtensionPoint(IAttachmentManipulator)
 
     CHUNK_SIZE = 4096
+    ARCHIVE_DIR = 'archive'
 
     max_size = IntOption('attachment', 'max_size', 262144,
         """Maximum allowed file size (in bytes) for ticket and wiki 
@@ -449,12 +450,14 @@ class AttachmentModule(Component):
         """Create the attachments directory."""
         if self.env.path:
             os.mkdir(os.path.join(self.env.path, 'attachments'))
+            os.mkdir(os.path.join(self.env.path, ARCHIVE_DIR))
 
     def environment_needs_upgrade(self, db):
-        return False
+        return os.path.exists(os.path.join(self.env.path, ARCHIVE_DIR))
 
     def upgrade_environment(self, db):
-        pass
+        if self.env.path:
+            os.mkdir(os.path.join(self.env.path, ARCHIVE_DIR))
 
     # INavigationContributor methods
 

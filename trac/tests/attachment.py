@@ -32,6 +32,8 @@ class AttachmentTestCase(unittest.TestCase):
         self.env.path = os.path.join(tempfile.gettempdir(), 'trac-tempenv')
         os.mkdir(self.env.path)
         self.attachments_dir = os.path.join(self.env.path, 'attachments')
+        self.archive_dir = os.path.join(self.env.path,
+                                        AttachmentModule.ARCHIVE_DIR)
         self.env.config.set('trac', 'permission_policies',
                             'TicketOnlyViewsTicket, LegacyAttachmentPolicy')
         self.env.config.set('attachment', 'max_size', 512)
