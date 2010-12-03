@@ -166,6 +166,24 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual('bar.jpg', history[1].filename)
         self.assertEqual(None, history[1].description)
 
+        self.assertEqual(2, len(list(attachment.get_history(version=2))))
+
+    def test_prev_next(self):
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0)
+        self.assertEqual((None, None), attachment.prev_next())
+
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0, replace=True)
+        self.assertEqual((1, None), attachment.prev_next())
+        self.assertEqual((None, 2), attachment.prev_next(version=1))
+
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0, replace=True)
+        self.assertEqual((2, None), attachment.prev_next())
+        self.assertEqual((None, 2), attachment.prev_next(version=1))
+        self.assertEqual((1, 3), attachment.prev_next(version=2))
+
     def test_delete(self):
         attachment1 = Attachment(self.env, 'wiki', 'SomePage')
         attachment1.insert('foo.txt', StringIO(''), 0)

@@ -366,9 +366,12 @@ class Attachment(object):
         else:
             return 1
 
-    def get_history(self):
-        """Return the predecessor versions of this attachment.
+    def get_history(self, version=None):
+        """Return the predecessor versions of this attachment or version.
         """
+        if version is None:
+            version = self.version
+
         db = self.env.get_read_db()
         cursor = db.cursor()
         cursor.execute("""
@@ -378,13 +381,39 @@ class Attachment(object):
                 WHERE type=%s AND id=%s and filename=%s and version<=%s
                 ORDER BY version DESC
                 """,
-                (self.parent_realm, self.parent_id,
-                 self.filename, self.version))
+                (self.parent_realm, self.parent_id, self.filename, version))
         for rec in cursor:
             attachment = Attachment(self.env, self.parent_realm,
                                     self.parent_id)
             attachment._from_database(*rec)
             yield attachment
+
+    def prev_next(self, version=None):
+        """Return tuple of versions either side of this attachment or version.
+
+        If previous version or next version does not exist None is substituted.
+        """
+        if version is None:
+            version = self.version
+        db = self.env.get_read_db()
+        cursor = db.cursor()
+        cursor.execute("""
+                SELECT version
+                FROM ATTACHMENT
+                WHERE type=%s AND id=%s and filename=%s
+                ORDER BY version
+                """,
+                (self.parent_realm, self.parent_id, self.filename))
+        versions = [v for (v,) in cursor]
+        here = versions.index(version)
+        if len(versions) <= 1:
+            return None, None
+        elif here == 0:
+            return None, versions[here+1]
+        elif here == len(versions) - 1:
+            return versions[here-1], None
+        else:
+            return versions[here-1], versions[here+1]
 
     @classmethod
     def select(cls, env, parent_realm, parent_id, db=None):
