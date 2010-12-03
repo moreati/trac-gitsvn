@@ -119,6 +119,15 @@ class AttachmentTestCase(unittest.TestCase):
                                       '%C3%9CberSicht', 'Teh%20bar.jpg'),
                          attachment.path)
 
+    def test_get_path_internal(self):
+        attachment = Attachment(self.env, 'ticket', 42)
+        attachment.filename = 'foo.txt'
+        self.assertEquals(self.attachments_dir, attachment._get_path())
+        self.assertEquals(self.archive_dir,
+                          attachment._get_path(status='archived'))
+        attachment.status = 'archived'
+        self.assertEquals(self.archive_dir, attachment._get_path())
+
     def test_select_empty(self):
         self.assertRaises(StopIteration,
                           Attachment.select(self.env, 'ticket', 42).next)

@@ -203,20 +203,24 @@ class Attachment(object):
                                    _('Invalid Attachment'))
         self._from_database(*row)
 
-    def _get_path(self, parent_realm, parent_id, filename):
-        if self.status == 'archived':
-            path = os.path.join(self.env.path, AttachmentModule.ARCHIVE_DIR,
-                                parent_realm, unicode_quote(parent_id))
+    def _get_path(self, parent_realm=None, parent_id=None, filename=None,
+                  status=None):
+        if (status or self.status) == 'archived':
+            parts = [self.env.path, AttachmentModule.ARCHIVE_DIR]
         else:
-            path = os.path.join(self.env.path, 'attachments',
-                                parent_realm, unicode_quote(parent_id))
-        if filename:
-            path = os.path.join(path, unicode_quote(filename))
-        return os.path.normpath(path)
+            parts = [self.env.path, 'attachments']
+
+        if parent_realm is not None and parent_id is not None:
+            parts += [parent_realm, unicode_quote(parent_id)]
+            if filename:
+                parts += [unicode_quote(filename)]
+
+        return os.path.normpath(os.path.join(*parts))
     
     @property
     def path(self):
-        return self._get_path(self.parent_realm, self.parent_id, self.filename)
+        return self._get_path(self.parent_realm, self.parent_id, self.filename,
+                              self.status)
 
     @property
     def title(self):
@@ -312,9 +316,8 @@ class Attachment(object):
         self.date = t
 
         # Make sure the path to the attachment is inside the environment
-        # attachments directory
-        attachments_dir = os.path.join(os.path.normpath(self.env.path),
-                                       'attachments')
+        # attachments/archive directory
+        attachments_dir = self._get_path()
         commonprefix = os.path.commonprefix([attachments_dir, self.path])
         assert commonprefix == attachments_dir
 
