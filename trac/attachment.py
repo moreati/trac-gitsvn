@@ -788,12 +788,10 @@ class AttachmentModule(Component):
                 if (not attachment.description.strip() and
                     old_attachment.description):
                     attachment.description = old_attachment.description
-                attachment.insert(filename, upload.file, size, replace=replace)
             except TracError:
                 pass # don't worry if there's nothing to replace
-            attachment.filename = None
-        else:
-            attachment.insert(filename, upload.file, size)
+
+        attachment.insert(filename, upload.file, size, replace=replace)
 
         add_notice(req, _("Your attachment has been saved in version "
                           "%(version)s.", version=attachment.version))
