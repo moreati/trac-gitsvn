@@ -149,6 +149,14 @@ class Attachment(object):
     def exists(self):
         return bool(self.filename and self.version > 0)
     
+    @property
+    def name(self):
+        return self.filename
+    
+    @property
+    def comment(self):
+        return self.description
+
     filename = property(lambda self: self.resource.id, _set_filename)
     version = property(lambda self: self.resource.version, _set_version)
     
@@ -567,6 +575,8 @@ class AttachmentModule(Component):
             data = self._render_confirm_delete(req, versioned_attachment)
         elif action == 'new':
             data = self._render_form(req, versioned_attachment)
+        elif action == 'history':
+            return self._render_history(req, versioned_attachment)
         else:
             data = self._render_view(req, attachment)
 
@@ -883,6 +893,23 @@ class AttachmentModule(Component):
         }
 
         return 'attachment.html', data, None
+
+    def _render_history(self, req, attachment):
+        req.perm(attachment.resource).require('ATTACHMENT_VIEW')
+
+        data = {'mode': 'history',
+                'title': get_resource_name(self.env, attachment.resource),
+                'attachment': attachment,
+                'history': list(attachment.get_history()),
+                'resource': attachment.resource,
+        }
+
+        add_ctxtnav(req, _("Back to %(attachment)s",
+                           attachment=attachment.filename),
+                           get_resource_url(self.env, attachment.resource,
+                                            req.href))
+
+        return "history_view.html", data, None
 
     def _render_view(self, req, attachment):
         req.perm(attachment.resource).require('ATTACHMENT_VIEW')
