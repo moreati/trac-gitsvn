@@ -578,7 +578,7 @@ class AttachmentModule(Component):
         elif action == 'history':
             return self._render_history(req, versioned_attachment)
         else:
-            data = self._render_view(req, attachment)
+            data = self._render_view(req, versioned_attachment)
 
         add_stylesheet(req, 'common/css/code.css')
         return 'attachment.html', data, None
