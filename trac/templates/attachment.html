@@ -49,8 +49,11 @@
             <br />
             <py:if test="authname and authname != 'anonymous'">
               <div class="options">
-                <label><input type="checkbox" name="replace" />
-                  Replace existing attachment of the same name</label>
+                <label py:choose="">
+                  <input py:when="replace" type="checkbox" name="replace" value="$replace" checked="checked" />
+                  <input py:otherwise="" type="checkbox" name="replace" value="$replace" />
+                  Replace existing attachment of the same name
+                </label>
               </div>
               <br />
             </py:if>

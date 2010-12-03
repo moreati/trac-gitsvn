@@ -476,6 +476,15 @@ class AttachmentModule(Component):
         For public sites where anonymous users can create attachments it is
         recommended to leave this option disabled (which is the default).""")
 
+    replace_by_default = BoolOption('attachment', 'replace_by_default',
+                                    'false',
+        """Default value of the replace checkbox on the add attachment form.
+
+        When an attachment is uploaded to a resource (e.g. wiki page, ticket)
+        has the same file name as an existing attachment. The upload can be
+        renamed (replace=False) or put in place of the existing attachment.
+        (replace=True).""")
+
     # IEnvironmentSetupParticipant methods
 
     def environment_created(self):
@@ -557,7 +566,7 @@ class AttachmentModule(Component):
         elif action == 'delete':
             data = self._render_confirm_delete(req, versioned_attachment)
         elif action == 'new':
-            data = self._render_form(req, attachment)
+            data = self._render_form(req, versioned_attachment)
         else:
             data = self._render_view(req, attachment)
 
@@ -862,7 +871,8 @@ class AttachmentModule(Component):
     def _render_form(self, req, attachment):
         req.perm(attachment.resource).require('ATTACHMENT_CREATE')
         return {'mode': 'new', 'author': get_reporter_id(req),
-            'attachment': attachment, 'max_size': self.max_size}
+            'attachment': attachment, 'max_size': self.max_size,
+            'replace': self.replace_by_default}
 
     def _render_list(self, req, parent):
         data = {
