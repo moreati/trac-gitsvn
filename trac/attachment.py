@@ -551,7 +551,7 @@ class AttachmentModule(Component):
         
         if req.method == 'POST':
             if action == 'new':
-                self._do_save(req, attachment)
+                self._do_save(req, versioned_attachment)
             elif action == 'delete':
                 self._do_delete(req, versioned_attachment)
         elif action == 'delete':
@@ -771,7 +771,8 @@ class AttachmentModule(Component):
                     raise InvalidAttachment(
                         _('Invalid attachment: %(message)s', message=message))
 
-        if req.args.get('replace'):
+        replace = req.args.get('replace')
+        if replace:
             try:
                 old_attachment = Attachment(self.env,
                                             attachment.resource(id=filename))
@@ -787,12 +788,15 @@ class AttachmentModule(Component):
                 if (not attachment.description.strip() and
                     old_attachment.description):
                     attachment.description = old_attachment.description
-                old_attachment.delete()
+                attachment.insert(filename, upload.file, size, replace=replace)
             except TracError:
                 pass # don't worry if there's nothing to replace
             attachment.filename = None
-        attachment.insert(filename, upload.file, size)
+        else:
+            attachment.insert(filename, upload.file, size)
 
+        add_notice(req, _("Your attachment has been saved in version "
+                          "%(version)s.", version=attachment.version))
         req.redirect(get_resource_url(self.env, attachment.resource(id=None),
                                       req.href))
 
