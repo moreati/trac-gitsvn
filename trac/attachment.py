@@ -42,6 +42,7 @@ from trac.util.text import exception_to_unicode, pretty_size, print_table, \
 from trac.util.translation import _, tag_
 from trac.web import HTTPBadRequest, IRequestHandler
 from trac.web.chrome import add_link, add_notice, add_stylesheet, add_ctxtnav, \
+                            prevnext_nav, \
                             INavigationContributor
 from trac.web.href import Href
 from trac.wiki.api import IWikiSyntaxProvider
@@ -583,7 +584,8 @@ class AttachmentModule(Component):
         # Link the attachment page to parent resource
         parent_name = get_resource_name(self.env, parent)
         parent_url = get_resource_url(self.env, parent, req.href)
-        add_link(req, 'up', parent_url, parent_name)
+        if not version:
+            add_link(req, 'up', parent_url, parent_name)
         add_ctxtnav(req, _('Back to %(parent)s', parent=parent_name), 
                     parent_url)
         
@@ -949,6 +951,28 @@ class AttachmentModule(Component):
         data = {'mode': 'view',
                 'title': get_resource_name(self.env, attachment.resource),
                 'attachment': attachment}
+
+        version = req.args.get('version')
+        prev_version, next_version = attachment.prev_next()
+        if prev_version:
+            add_link(req, 'prev',
+                     get_resource_url(self.env, attachment.resource,
+                                      req.href, version=prev_version),
+                     _('Version %(num)s', num=prev_version))
+
+        if next_version:
+            add_link(req, 'next',
+                     get_resource_url(self.env, attachment.resource,
+                                      req.href, version=next_version),
+                     _('Version %(num)s', num=next_version))
+
+        if version:
+            add_link(req, 'up',
+                     get_resource_url(self.env, attachment.resource,
+                                      req.href),
+                     _('View latest version'))
+            prevnext_nav(req, _('Previous Version'), _('Next Version'),
+                         _('View Latest Version'))
 
         fd = attachment.open()
         try:
