@@ -16,7 +16,7 @@
       <h1 i18n:msg="name">Change History for <a href="${url or url_of(resource)}">${name or name_of(resource)}</a></h1>
 
       <form py:if="history" class="printableform" method="get" action="">
-        <div class="buttons">
+        <div py:if="not disable_diff" class="buttons">
           <input type="hidden" name="action" value="${diff_action or 'diff'}" />
           <input py:for="k, v in diff_args or []" type="hidden" name="$k" value="$v"/>
           <input type="submit" value="${_('View changes')}" />
@@ -24,7 +24,7 @@
         <table id="fieldhist" class="listing" summary="Change history">
           <thead>
             <tr>
-              <th class="diff"></th>
+              <th py:if="not disable_diff" class="diff"></th>
               <th class="version">Version</th>
               <th class="date">Date</th>
               <th class="author">Author</th>
@@ -33,7 +33,7 @@
           </thead>
           <tbody>
             <tr py:for="idx, item in enumerate(history)" class="${idx % 2 and 'odd' or 'even'}">
-              <td class="diff">
+              <td py:if="not disable_diff" class="diff">
                 <input type="radio" name="old_version" value="$item.version"
                        checked="${idx == 1 or None}" />
                 <input type="radio" name="version" value="$item.version"
@@ -50,7 +50,7 @@
             </tr>
           </tbody>
         </table>
-        <py:if test="len(history) &gt; 10">
+        <py:if test="not disable_diff and len(history) &gt; 10">
           <div class="buttons">
             <input type="submit" value="${_('View changes')}" />
           </div>

@@ -898,6 +898,7 @@ class AttachmentModule(Component):
         req.perm(attachment.resource).require('ATTACHMENT_VIEW')
 
         data = {'mode': 'history',
+                'disable_diff': True,
                 'title': get_resource_name(self.env, attachment.resource),
                 'attachment': attachment,
                 'history': list(attachment.get_history()),
