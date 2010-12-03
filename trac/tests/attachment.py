@@ -99,6 +99,14 @@ class AttachmentTestCase(unittest.TestCase):
                                       'bar.jpg'),
                          attachment.path)
 
+    def test_get_path_archived(self):
+        attachment = Attachment(self.env, 'ticket', 42)
+        attachment.filename = 'foo.txt'
+        attachment.status = 'archived'
+        self.assertEqual(os.path.join(self.archive_dir, 'ticket', '42',
+                                      'foo.txt'),
+                         attachment.path)
+
     def test_get_path_encoded(self):
         attachment = Attachment(self.env, 'ticket', 42)
         attachment.filename = 'Teh foo.txt'

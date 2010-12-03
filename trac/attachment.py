@@ -204,8 +204,12 @@ class Attachment(object):
         self._from_database(*row)
 
     def _get_path(self, parent_realm, parent_id, filename):
-        path = os.path.join(self.env.path, 'attachments', parent_realm,
-                            unicode_quote(parent_id))
+        if self.status == 'archived':
+            path = os.path.join(self.env.path, AttachmentModule.ARCHIVE_DIR,
+                                parent_realm, unicode_quote(parent_id))
+        else:
+            path = os.path.join(self.env.path, 'attachments',
+                                parent_realm, unicode_quote(parent_id))
         if filename:
             path = os.path.join(path, unicode_quote(filename))
         return os.path.normpath(path)
