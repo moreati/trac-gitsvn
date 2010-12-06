@@ -58,7 +58,8 @@ class AttachmentTestCase(unittest.TestCase):
 
     def test_existing_attachment(self):
         t = datetime(2001, 1, 1, 1, 1, 1, 0, utc)
-        cursor = self.env.db.cursor()
+        db = self.env.get_db_cnx()
+        cursor = db.cursor()
         cursor.execute("""INSERT INTO attachment
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                        ('ticket', '42', 'foo.txt', 1, 8, to_utimestamp(t), 
