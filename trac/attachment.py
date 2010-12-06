@@ -529,7 +529,7 @@ class Attachment(object):
                 JOIN (SELECT type AS c_type, id AS c_id, 
                              filename AS c_filename, MAX(version) AS c_version
                       FROM attachment
-                      GROUP BY c_type, c_id, c_filename)
+                      GROUP BY c_type, c_id, c_filename) AS current
                      ON type = c_type AND id = c_id
                         AND filename = c_filename AND version = c_version
                 WHERE type=%s AND id=%s
