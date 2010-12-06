@@ -51,7 +51,9 @@ class TestAttachmentChangeListener(Component):
 class AttachmentTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.env = EnvironmentStub()
+        self.env = EnvironmentStub(enable=['trac.attachment.*',
+                                           TicketOnlyViewsTicket,
+                                           TestAttachmentChangeListener])
         self.env.path = os.path.join(tempfile.gettempdir(), 'trac-tempenv')
         os.mkdir(self.env.path)
         self.attachments_dir = os.path.join(self.env.path, 'attachments')
@@ -170,8 +172,6 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertRaises(StopIteration, attachments.next)
 
         listener = TestAttachmentChangeListener(self.env)
-        module = AttachmentModule(self.env)
-        self.assertEquals(1, len(module.change_listeners))
         self.assertEquals('foo.txt', listener.added[0].filename)
         self.assertEquals('bar.jpg', listener.added[1].filename)
 
@@ -298,6 +298,10 @@ class AttachmentTestCase(unittest.TestCase):
         attachments = Attachment.select(self.env, 'wiki', 'SomePage')
         self.assertEqual(0, len(list(attachments)))
 
+        listener = TestAttachmentChangeListener(self.env)
+        self.assertEqual('foo.txt', listener.deleted[0].filename)
+        self.assertEqual('bar.jpg', listener.deleted[1].filename)
+
     def test_delete_file_gone(self):
         """
         Verify that deleting an attachment works even if the referenced file
@@ -320,8 +324,14 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual(True, attachment.exists)
         assert not os.path.exists(attachment.path) #TODO Break with archiving?
 
-        attachments = Attachment.select(self.env, 'wiki', 'SomePage')
-        self.assertEqual(1, len(list(attachments)))
+        attachments = list(Attachment.select(self.env, 'wiki', 'SomePage'))
+        self.assertEqual(1, len(attachments))
+
+        listener = TestAttachmentChangeListener(self.env)
+        self.assertEqual(1, len(listener.deleted_version))
+        deleted_att, old_version = listener.deleted_version[0]
+        self.assertEqual(attachment.filename, deleted_att.filename)
+        self.assertEqual(2, old_version)
 
     def test_delete_archived(self):
         attachment = Attachment(self.env, 'wiki', 'SomePage')
@@ -396,6 +406,14 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual(1, len(list(attachments)))
         assert not os.path.exists(path1) and os.path.exists(attachment1.path)
         assert os.path.exists(attachment2.path)
+
+        listener = TestAttachmentChangeListener(self.env)
+        self.assertEqual(1, len(listener.reparented))
+        reparented_att, old_parent_realm, old_parent_id = \
+                                                listener.reparented[0]
+        self.assertEqual((attachment1.filename, 'wiki', 'SomePage'),
+                         (reparented_att.filename,
+                          old_parent_realm, old_parent_id))
 
     def test_reparent_versioned(self):
         attachment1 = Attachment(self.env, 'wiki', 'SomePage')
