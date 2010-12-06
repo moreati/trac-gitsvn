@@ -106,11 +106,34 @@ class OverwriteFileTestCase(unittest.TestCase):
         filepath = os.path.join(self.path, 'does_not_exist')
         self.assertRaises(OSError, util.overwrite_file, filepath)
 
+class CreateNewFileTestCase(unittest.TestCase):
+
+    def setUp(self):
+        self.path = os.path.join(tempfile.gettempdir(), 'trac-tempfile')
+        os.mkdir(self.path)
+
+    def tearDown(self):
+        shutil.rmtree(self.path)
+
+    def test_existing(self):
+        filepath = os.path.join(self.path, 'should_not_exist')
+        f = open(filepath, 'w')
+        f.write('')
+        f.close()
+        self.assertRaises(OSError, util.create_new_file, filepath)
+
+    def test_new(self):
+        filepath = os.path.join(self.path, 'does_not_exist')
+        newpath, f = util.create_new_file(filepath)
+        self.assertEqual(filepath, newpath)
+        self.assertRaises(IOError, f.read)
+
 def suite():
     suite = unittest.TestSuite()
     suite.addTest(unittest.makeSuite(AtomicFileTestCase, 'test'))
     suite.addTest(unittest.makeSuite(ContentDispositionTestCase, 'test'))
     suite.addTest(unittest.makeSuite(OverwriteFileTestCase, 'test'))
+    suite.addTest(unittest.makeSuite(CreateNewFileTestCase, 'test'))
     suite.addTest(concurrency.suite())
     suite.addTest(datefmt.suite())
     suite.addTest(presentation.suite())

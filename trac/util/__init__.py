@@ -225,10 +225,7 @@ def create_unique_file(path):
     idx = 1
     while 1:
         try:
-            flags = os.O_CREAT + os.O_WRONLY + os.O_EXCL
-            if hasattr(os, 'O_BINARY'):
-                flags += os.O_BINARY
-            return path, os.fdopen(os.open(path, flags, 0666), 'w')
+            return create_new_file(path)
         except OSError, e:
             if e.errno != errno.EEXIST:
                 raise
@@ -240,13 +237,21 @@ def create_unique_file(path):
 
 
 def overwrite_file(path):
-    """Truncate a file and open it for exclusive write in binary mode.
+    """Truncate an existing file, open it for exclusive writing in binary 
+    mode.
     """
     flags = os.O_TRUNC + os.O_WRONLY + os.O_EXCL
     if hasattr(os, 'O_BINARY'):
         flags += os.O_BINARY
     return path, os.fdopen(os.open(path, flags, 0666), 'w')
 
+def create_new_file(path):
+    """Create a new fle, open it for exclusive writing in binary mode.
+    """
+    flags = os.O_CREAT + os.O_WRONLY + os.O_EXCL
+    if hasattr(os, 'O_BINARY'):
+        flags += os.O_BINARY
+    return path, os.fdopen(os.open(path, flags, 0666), 'w')
 
 class NaivePopen:
     """This is a deadlock-safe version of popen that returns an object with
