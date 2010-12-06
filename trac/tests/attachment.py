@@ -7,7 +7,8 @@ from StringIO import StringIO
 import tempfile
 import unittest
 
-from trac.attachment import Attachment, AttachmentModule
+from trac.attachment import IAttachmentChangeListener, \
+                            Attachment, AttachmentModule
 from trac.core import Component, implements
 from trac.perm import IPermissionPolicy, PermissionCache
 from trac.resource import Resource, resource_exists
@@ -23,6 +24,28 @@ class TicketOnlyViewsTicket(Component):
             return resource.realm == 'ticket'
         else:
             return None
+
+
+class TestAttachmentChangeListener(Component):
+    implements(IAttachmentChangeListener)
+    def __init__(self):
+        self.added = []
+        self.deleted = []
+        self.deleted_version = []
+        self.reparented = []
+
+    def attachment_added(self, attachment):
+        self.added.append(attachment)
+
+    def attachment_deleted(self, attachment):
+        self.deleted.append(attachment)
+
+    def attachment_version_deleted(self, attachment, old_version):
+        self.deleted_version.append((attachment, old_version))
+
+    def attachment_reparented(self, attachment, old_parent_realm,
+                              old_parent_id):
+        self.reparented.append((attachment, old_parent_realm, old_parent_id))
 
 
 class AttachmentTestCase(unittest.TestCase):
@@ -145,6 +168,12 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual('foo.txt', attachments.next().filename)
         self.assertEqual('bar.jpg', attachments.next().filename)
         self.assertRaises(StopIteration, attachments.next)
+
+        listener = TestAttachmentChangeListener(self.env)
+        module = AttachmentModule(self.env)
+        self.assertEquals(1, len(module.change_listeners))
+        self.assertEquals('foo.txt', listener.added[0].filename)
+        self.assertEquals('bar.jpg', listener.added[1].filename)
 
     def test_insert_unique(self):
         attachment = Attachment(self.env, 'ticket', 42)
