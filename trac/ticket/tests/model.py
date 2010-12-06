@@ -319,10 +319,10 @@ class TicketTestCase(unittest.TestCase):
         t2 = datetime(2001, 1, 1, 1, 1, 2, 0, utc)
         db = self.env.get_db_cnx()
         cursor = db.cursor()
-        cursor.execute("INSERT INTO attachment (type,id,filename,size,time,"
-                       "                        description,author,ipnr) "
-                       "VALUES ('ticket',%s,'file.txt',1234,%s,"
-                       "        'My file','mark','')",
+        cursor.execute("INSERT INTO attachment (type,id,filename,version,size,"
+                       "                        time,description,author,ipnr) "
+                       "VALUES ('ticket',%s,'file.txt',1, 1234,"
+                       "        %s,'My file','mark','')",
                        (str(tkt_id), to_utimestamp(t2)))
         db.commit()
         t3 = datetime(2001, 1, 1, 1, 1, 3, 0, utc)
