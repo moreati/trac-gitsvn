@@ -34,7 +34,8 @@ from trac.mimeview import *
 from trac.perm import PermissionError, IPermissionPolicy
 from trac.resource import *
 from trac.search import search_to_sql, shorten_result
-from trac.util import get_reporter_id, overwrite_file, create_unique_file
+from trac.util import get_reporter_id, overwrite_file, create_new_file, \
+                      create_unique_file
 from trac.util.datefmt import format_datetime, from_utimestamp, \
                               to_datetime, to_utimestamp, utc
 from trac.util.text import exception_to_unicode, pretty_size, print_table, \
@@ -203,6 +204,9 @@ class Attachment(object):
                                    _('Invalid Attachment'))
         self._from_database(*row)
 
+    def _archive_filename(self, filename):
+        return '%0.5d_%s' % (self.version, filename)
+
     def _get_path(self, parent_realm=None, parent_id=None, filename=None,
                   status=None):
         if (status or self.status) == 'archived':
@@ -212,7 +216,9 @@ class Attachment(object):
 
         if parent_realm is not None and parent_id is not None:
             parts += [parent_realm, unicode_quote(parent_id)]
-            if filename:
+            if (status or self.status) == 'archived' and filename:
+                parts += [self._archive_filename(unicode_quote(filename))]
+            elif filename:
                 parts += [unicode_quote(filename)]
 
         return os.path.normpath(os.path.join(*parts))
@@ -307,7 +313,8 @@ class Attachment(object):
             if hasattr(listener, 'attachment_reparented'):
                 listener.attachment_reparented(self, old_realm, old_id)
 
-    def insert(self, filename, fileobj, size, t=None, replace=False, db=None):
+    def insert(self, filename, fileobj, size, t=None, description=None,
+               replace=False, archive=False, db=None):
         self.size = size and int(size) or 0
         if t is None:
             t = datetime.now(utc)
@@ -321,16 +328,51 @@ class Attachment(object):
         commonprefix = os.path.commonprefix([attachments_dir, self.path])
         assert commonprefix == attachments_dir
 
-        if not os.access(self.path, os.F_OK):
-            os.makedirs(self.path)
+        if (archive and not replace) or (archive and not self.exists):
+            raise ValueError('Cannot archive an attachment without replacing '
+                             'one.')
+
+        if self.exists and filename != self.filename:
+            raise ValueError('An existing attachment can only be replaced by '
+                             'one with the same filename.')
+
+        attachment_dir = self._get_path(self.parent_realm, self.parent_id)
+        archived_dir = self._get_path(self.parent_realm, self.parent_id,
+                                      status='archived')
+
+        if not os.access(attachment_dir, os.F_OK):
+            os.makedirs(attachment_dir)
+
+        if archive and self.exists and not os.access(archived_dir, os.F_OK):
+            os.makedirs(archived_dir)
+
         filename = unicode_quote(filename)
-        path = os.path.join(self.path, filename)
-        if replace:
+        path = os.path.join(attachment_dir, filename)
+
+        if archive and self.exists:
+            archived_filename = self._archive_filename(filename)
+            archived_path = os.path.join(archived_dir, archived_filename)
+            assert os.path.isfile(path)
+            assert path == self.path
+
+            if os.path.isfile(path):
+                try:
+                    self.env.log.debug('Archiving %s to %s',
+                                       path, archived_path)
+                    os.rename(path, archived_path)
+                except OSError, e:
+                    self.env.log.error('Failed to archive attachment %s: %s',
+                                       path,
+                                       exception_to_unicode(e, traceback=True))
+                    raise TracError(_("Could not archive attachment %(name)s",
+                                      name=self.filename))
+
+        if archive and self.exists:
+            path, targetfile = create_new_file(path)
+        elif replace:
             path, targetfile = overwrite_file(path)
-            version = self.version + 1
         else:
             path, targetfile = create_unique_file(path)
-            version = 1
 
         try:
             # Note: `path` is an unicode string because `self.path` was one.
@@ -341,6 +383,17 @@ class Attachment(object):
             @self.env.with_transaction(db)
             def do_insert(db):
                 cursor = db.cursor()
+                if archive and self.exists:
+                    cursor.execute(
+                            """UPDATE attachment SET status=%s
+                            WHERE type=%s AND id=%s
+                            AND filename=%s AND version=%s
+                            """,
+                            ('archived', self.parent_realm, self.parent_id,
+                             filename, self.version))
+                    self.env.log.info('Attachment %s version %d archived',
+                                      self.title, self.version)
+
                 version = self._next_version(cursor, self.parent_realm,
                                              self.parent_id, filename)
                 cursor.execute("INSERT INTO attachment "
@@ -348,13 +401,13 @@ class Attachment(object):
                                (self.parent_realm, self.parent_id, 
                                 filename, version,
                                 self.size, to_utimestamp(t), self.description,
-                                self.author, self.ipnr, self.status))
+                                self.author, self.ipnr, None))
                 shutil.copyfileobj(fileobj, targetfile)
                 self.resource.id = self.filename = filename
                 self.version = version # Also sets self.resource.version
 
-                self.env.log.info('New attachment: %s by %s', self.title,
-                                  self.author)
+                self.env.log.info('New attachment: %s version %d by %s',
+                                  self.title, self.version, self.author)
         finally:
             targetfile.close()
 
@@ -530,6 +583,10 @@ class AttachmentModule(Component):
         renamed (replace=False) or put in place of the existing attachment.
         (replace=True).""")
 
+    archive = BoolOption('attachment', 'archive', 'false',
+        """Move an attachment into the archive directory when it replaced by
+        a newer version.""")
+
     # IEnvironmentSetupParticipant methods
 
     def environment_created(self):
@@ -539,7 +596,8 @@ class AttachmentModule(Component):
             os.mkdir(os.path.join(self.env.path, self.ARCHIVE_DIR))
 
     def environment_needs_upgrade(self, db):
-        return os.path.exists(os.path.join(self.env.path, self.ARCHIVE_DIR))
+        return not os.path.exists(os.path.join(self.env.path,
+                                               self.ARCHIVE_DIR))
 
     def upgrade_environment(self, db):
         if self.env.path:
@@ -829,6 +887,7 @@ class AttachmentModule(Component):
                         _('Invalid attachment: %(message)s', message=message))
 
         replace = req.args.get('replace')
+        archive = self.archive
         if replace:
             try:
                 old_attachment = Attachment(self.env,
@@ -847,8 +906,10 @@ class AttachmentModule(Component):
                     attachment.description = old_attachment.description
             except TracError:
                 pass # don't worry if there's nothing to replace
-
-        attachment.insert(filename, upload.file, size, replace=replace)
+            attachment.insert(filename, upload.file, size, replace=replace,
+                              archive=archive)
+        else:
+            attachment.insert(filename, upload.file, size)
 
         add_notice(req, _("Your attachment has been saved in version "
                           "%(version)s.", version=attachment.version))

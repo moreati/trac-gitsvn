@@ -104,7 +104,7 @@ class AttachmentTestCase(unittest.TestCase):
         attachment.filename = 'foo.txt'
         attachment.status = 'archived'
         self.assertEqual(os.path.join(self.archive_dir, 'ticket', '42',
-                                      'foo.txt'),
+                                      '00000_foo.txt'),
                          attachment.path)
 
     def test_get_path_encoded(self):
@@ -160,6 +160,55 @@ class AttachmentTestCase(unittest.TestCase):
         attachment.insert('foo.txt', StringIO(''), 0, replace=True)
         self.assertEqual('foo.txt', attachment.filename)
         self.assertEqual(2, attachment.version)
+
+    def test_insert_replace_with_different_filename(self):
+        attachment = Attachment(self.env, 'ticket', 42)
+        attachment.insert('foo.txt', StringIO(''), 0)
+        self.assertRaises(ValueError, attachment.insert, 'bar.jpg',
+                          StringIO(''), 0)
+
+        self.assertEqual('foo.txt', attachment.filename)
+
+    def test_insert_archive_without_replace(self):
+        # Without an existing version
+        attachment = Attachment(self.env, 'ticket', 42)
+        self.assertRaises(ValueError, attachment.insert, 'foo.txt',
+                          StringIO(''), 0, replace=False, archive=True)
+        attachment.insert('foo.txt', StringIO(''), 0)
+
+        # With an existing version
+        attachment = Attachment(self.env, 'ticket', 42)
+        self.assertRaises(ValueError, attachment.insert, 'foo.txt',
+                          StringIO(''), 0, replace=False, archive=True)
+
+    def test_insert_archive_not_exist(self):
+        attachment = Attachment(self.env, 'ticket', 42)
+        self.assertRaises(ValueError, attachment.insert, 'foo.txt',
+                          StringIO(''), 0, replace=True, archive=True)
+
+    def test_insert_replace_archive(self):
+        attachment = Attachment(self.env, 'ticket', 42)
+        attachment.insert('foo.txt', StringIO(''), 0)
+        attachment = Attachment(self.env, 'ticket', 42, filename='foo.txt')
+        attachment.insert('foo.txt', StringIO(''), 0, replace=True,
+                           archive=True)
+        self.assertEqual(True, attachment.exists)
+        self.assertEqual(2, attachment.version)
+        self.assertEqual(None, attachment.status)
+        self.assertEqual(os.path.join(self.attachments_dir,
+                                      'ticket', '42', 'foo.txt'),
+                         attachment.path)
+        assert os.path.exists(attachment.path)
+
+        attachment = Attachment(self.env, 'ticket', 42,
+                                filename='foo.txt', version=1)
+        self.assertEqual(True, attachment.exists)
+        self.assertEqual(1, attachment.version)
+        self.assertEqual('archived', attachment.status)
+        self.assertEqual(os.path.join(self.archive_dir,
+                                      'ticket', '42', '00001_foo.txt'),
+                         attachment.path)
+        assert os.path.exists(attachment.path)
 
     def test_insert_outside_attachments_dir(self):
         attachment = Attachment(self.env, '../../../../../sth/private', 42)
