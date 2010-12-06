@@ -280,20 +280,66 @@ class AttachmentTestCase(unittest.TestCase):
         attachment.delete()
 
     def test_delete_version(self):
-        attachment1 = Attachment(self.env, 'wiki', 'SomePage')
-        attachment1.insert('foo.txt', StringIO(''), 0)
-        attachment2 = Attachment(self.env, 'wiki', 'SomePage')
-        attachment2.insert('foo.txt', StringIO(''), 0, replace=True)
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0)
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0, replace=True)
 
-        attachment2.delete(version=attachment2.version)
-
-        assert not os.path.exists(attachment1.path) #TODO Break with archiving
-        assert not os.path.exists(attachment1.path) #TODO Break with archiving?
-        #self.assertEqual(True, attachment1.exists)
-        #self.assertEqual(False, attachment2.exists)
+        attachment.delete(version=attachment.version)
+        self.assertEqual(1, attachment.version)
+        self.assertEqual(True, attachment.exists)
+        assert not os.path.exists(attachment.path) #TODO Break with archiving?
 
         attachments = Attachment.select(self.env, 'wiki', 'SomePage')
         self.assertEqual(1, len(list(attachments)))
+
+    def test_delete_archived(self):
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0)
+        attachment = Attachment(self.env, 'wiki', 'SomePage',
+                                filename='foo.txt')
+        attachment.insert('foo.txt', StringIO(''), 0, replace=True,
+                          archive=True)
+        attachment.delete()
+
+        self.assertEqual([], os.listdir(os.path.join(self.attachments_dir,
+                                                     'wiki', 'SomePage')))
+        self.assertEqual([], os.listdir(os.path.join(self.archive_dir,
+                                                     'wiki', 'SomePage')))
+
+    def test_delete_version_archived(self):
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0)
+        attachment = Attachment(self.env, 'wiki', 'SomePage',
+                                filename='foo.txt')
+        attachment.insert('foo.txt', StringIO(''), 0, replace=True,
+                          archive=True)
+
+        # Delete older version
+        attachment = Attachment(self.env, 'wiki', 'SomePage',
+                                filename='foo.txt', version=1)
+        old_path = attachment.path
+        attachment.delete(version=attachment.version)
+        self.assertEqual(2, attachment.version)
+        self.assertEqual(True, attachment.exists)
+        self.assertNotEqual('archived', attachment.status)
+        self.assertNotEqual('deleted', attachment.status)
+        assert not os.path.exists(old_path)
+
+        # Delete current version
+        attachment = Attachment(self.env, 'wiki', 'SomePage',
+                                filename='foo.txt')
+        old_path = attachment.path
+        attachment.delete(version=attachment.version)
+        assert not os.path.exists(old_path)
+
+    def test_delete_last_version(self):
+        attachment = Attachment(self.env, 'wiki', 'SomePage')
+        attachment.insert('foo.txt', StringIO(''), 0)
+        attachment.delete(version=attachment.version)
+        self.assertEqual(False, attachment.exists)
+        self.assertEqual(0, attachment.version)
+        self.assertEqual('deleted', attachment.status)
 
     def test_reparent(self):
         attachment1 = Attachment(self.env, 'wiki', 'SomePage')
