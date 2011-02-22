@@ -1074,8 +1074,8 @@ class AttachmentModule(Component):
                      get_resource_url(self.env, attachment.resource,
                                       req.href),
                      _('View latest version'))
-            prevnext_nav(req, _('Previous Version'), _('Next Version'),
-                         _('View Latest Version'))
+        prevnext_nav(req, _('Previous Version'), _('Next Version'),
+                     _('View Latest Version'))
 
         fd = attachment.open()
         try:
