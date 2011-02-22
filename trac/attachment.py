@@ -907,8 +907,12 @@ class AttachmentModule(Component):
         if not filename:
             raise TracError(_('No file uploaded'))
         # Now the filename is known, update the attachment resource
-        # attachment.filename = filename
-        attachment.description = req.args.get('description', '')
+        try:
+            attachment = Attachment(self.env, attachment.resource(id=filename))
+        except ResourceNotFound:
+            pass
+        if req.args.get('description', '').strip():
+            attachment.description = req.args.get('description', '')
         attachment.author = get_reporter_id(req, 'author')
         attachment.ipnr = req.remote_addr
 
@@ -926,15 +930,9 @@ class AttachmentModule(Component):
 
         replace = req.args.get('replace')
         archive = self.archive
-        try:
-            old_attachment = Attachment(self.env,
-                                        attachment.resource(id=filename))
-        except ResourceNotFound:
-            old_attachment = None
-
-        if replace and old_attachment and old_attachment.exists:
+        if replace and attachment.exists:
             if not (req.authname and req.authname != 'anonymous' \
-                    and old_attachment.author == req.authname) \
+                    and attachment.author == req.authname) \
                and 'ATTACHMENT_DELETE' \
                                     not in req.perm(attachment.resource):
                 raise PermissionError(msg=_("You don't have permission to "
@@ -942,9 +940,6 @@ class AttachmentModule(Component):
                     "replace your own attachments. Replacing other's "
                     "attachments requires ATTACHMENT_DELETE permission.",
                     name=filename))
-            if (not attachment.description.strip() and
-                old_attachment.description):
-                attachment.description = old_attachment.description
 
             attachment.insert(filename, upload.file, size, replace=replace,
                               archive=archive)
