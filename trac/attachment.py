@@ -213,7 +213,9 @@ class Attachment(object):
                   version=None, status=None):
         if version is None:
             version = self.version
-        if (status or self.status) == 'archived':
+        if status is None:
+            status = self.status
+        if status == 'archived':
             parts = [self.env.path, AttachmentModule.ARCHIVE_DIR]
         else:
             parts = [self.env.path, 'attachments']
@@ -383,7 +385,8 @@ class Attachment(object):
             raise ValueError('An existing attachment can only be replaced by '
                              'one with the same filename.')
 
-        attachment_dir = self._get_path(self.parent_realm, self.parent_id)
+        attachment_dir = self._get_path(self.parent_realm, self.parent_id,
+                                        status='attachments')
         archived_dir = self._get_path(self.parent_realm, self.parent_id,
                                       status='archived')
 
@@ -396,7 +399,8 @@ class Attachment(object):
         filename = unicode_quote(filename)
         path = os.path.join(attachment_dir, filename)
 
-        if archive and self.exists:
+        # Archive the attachment if requested and not done already so
+        if archive and self.exists and self.status != 'archived':
             archived_filename = self._archive_filename(filename)
             archived_path = os.path.join(archived_dir, archived_filename)
             assert os.path.isfile(path)
@@ -449,9 +453,15 @@ class Attachment(object):
                                 filename, version,
                                 self.size, to_utimestamp(t), self.description,
                                 self.author, self.ipnr, None))
+
+                # Save the new attachment file
                 shutil.copyfileobj(fileobj, targetfile)
+
+                # Update the in memory instance
+                # self.date = t has already been set at the start of the method
                 self.resource.id = self.filename = filename
                 self.version = version # Also sets self.resource.version
+                self.status = None
 
                 self.env.log.info('New attachment: %s version %d by %s',
                                   self.title, self.version, self.author)
