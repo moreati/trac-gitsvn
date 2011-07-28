@@ -796,22 +796,26 @@ class AttachmentModule(Component):
         a particular object realm.
 
         The tuples are in the form (change, realm, id, filename, version, time,
-        description, author, status). `change` can currently only be `created`.
+        description, author, status). `change` can be `created` or 'deleted`.
         """
         # Traverse attachment directory
         db = self.env.get_db_cnx()
         cursor = db.cursor()
         cursor.execute("SELECT type, id, filename, version, time, description,"
-                       "author, status "
+                       "author, status, deleted "
                        "  FROM attachment "
                        "  WHERE time > %s AND time < %s "
                        "        AND type = %s",
                        (to_utimestamp(start), to_utimestamp(stop), realm))
         for (realm, id, filename, version, ts, description, author,
-                status) in cursor:
+                status, deleted) in cursor:
             time = from_utimestamp(ts)
             yield ('created', realm, id, filename, version, time, description,
-                              author, status)
+                              author, status, deleted)
+            if deleted is not None:
+                deleted = from_utimestamp(deleted)
+                yield ('deleted', realm, id, filename, version, deleted,
+                                  description, author, status, deleted)
 
     def get_timeline_events(self, req, resource_realm, start, stop):
         """Return an event generator suitable for ITimelineEventProvider.
@@ -820,21 +824,38 @@ class AttachmentModule(Component):
         `resource_realm.realm`.
         """
         for (change, realm, id, filename, version, time, descr, author,
-                status) in \
+                status, deleted) in \
                 self.get_history(start, stop, resource_realm.realm):
-            attachment = resource_realm(id=id).child('attachment', filename)
+            attachment = resource_realm(id=id).child('attachment', filename,
+                                                     version=version)
             if 'ATTACHMENT_VIEW' in req.perm(attachment):
-                yield ('attachment', time, author, (attachment, descr), self)
+                yield ('attachment', time, author,
+                                     (attachment, deleted, change, descr),
+                                     self)
 
     def render_timeline_event(self, context, field, event):
-        attachment, descr = event[3]
+        attachment, deleted, change, descr = event[3]
         if field == 'url':
-            return self.get_resource_url(attachment, context.href)
+            if deleted:
+                # TODO link to some kind of 'restore page' feature
+                return ("javascript:alert('%s')"
+                        % _("This attachment is no longer available."))
+            else:
+                return self.get_resource_url(attachment, context.href,
+                                             version=attachment.version)
         elif field == 'title':
             name = get_resource_name(self.env, attachment.parent)
             title = get_resource_summary(self.env, attachment.parent)
-            return tag_("%(attachment)s attached to %(resource)s",
+            if change == 'created':
+                action = _("attached to")
+            elif change == 'deleted':
+                action = _("deleted from")
+
+            return tag_("%(attachment)s (version %(version)s) "
+                        "%(action)s %(resource)s",
                         attachment=tag.em(os.path.basename(attachment.id)),
+                        version=attachment.version,
+                        action=action,
                         resource=tag.em(name, title=title))
         elif field == 'description':
             return format_to(self.env, None, context(attachment.parent), descr)
@@ -1006,16 +1027,17 @@ class AttachmentModule(Component):
 
         version = int(req.args.get('version', 0)) or None
         old_version = int(req.args.get('old_version', 0)) or version
+        authname = get_reporter_id(req)
 
         @self.env.with_transaction()
         def do_delete(db):
             if version and old_version and version > old_version:
                 # delete from `old_version` exclusive to `version` inclusive:
                 for v in range(old_version, version):
-                    attachment.delete(v + 1, db)
+                    attachment.delete(v + 1, db, authname=authname)
             else:
                 # only delete that `version`, or all versions if `None`
-                attachment.delete(version, db)
+                attachment.delete(version, db, authname=authname)
 
         if not attachment.exists:
             add_notice(req, _('The attachment %(title)s has been deleted.',
