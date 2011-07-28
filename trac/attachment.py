@@ -140,6 +140,7 @@ class Attachment(object):
             self.author = None
             self.ipnr = None
             self.status = None
+            self.deleted = None
 
     def _set_filename(self, val):
         self.resource.id = val
@@ -163,7 +164,7 @@ class Attachment(object):
     version = property(lambda self: self.resource.version, _set_version)
     
     def _from_database(self, filename, version, description, size, time,
-                       author, ipnr, status):
+                       author, ipnr, status, deleted):
         self.filename = filename
         self.version = version and int(version) or 0
         self.description = description
@@ -172,6 +173,7 @@ class Attachment(object):
         self.author = author
         self.ipnr = ipnr
         self.status = status
+        self.deleted = deleted # Preserve NULL as None
 
     def _fetch(self, filename, version, db=None):
         if not db:
@@ -180,18 +182,20 @@ class Attachment(object):
         if version is not None:
             cursor.execute("""
                     SELECT filename, version, description, size, time,
-                           author, ipnr, status
+                           author, ipnr, status, deleted
                     FROM attachment
                     WHERE type=%s AND id=%s AND filename=%s AND version=%s
+                    AND deleted IS NULL
                     """,
                     (self.parent_realm, unicode(self.parent_id), 
                      filename, version))
         else:
             cursor.execute("""
                     SELECT filename, version, description, size, time,
-                           author, ipnr, status
+                           author, ipnr, status, deleted
                     FROM attachment
                     WHERE type=%s AND id=%s AND filename=%s
+                    AND deleted IS NULL
                     ORDER BY version DESC LIMIT 1
                            """,
                     (self.parent_realm, unicode(self.parent_id), filename))
@@ -238,10 +242,16 @@ class Attachment(object):
     def title(self):
         return '%s:%s: %s' % (self.parent_realm, self.parent_id, self.filename)
 
-    def delete(self, version=None, db=None):
+    def delete(self, version=None, db=None, authname=None):
         assert self.filename, 'Cannot delete non-existent attachment'
         if (version is not None) and (version != self.version):
             raise ValueError('Can only delete own attachment version')
+
+        if version is not None and self.status == 'deleted':
+            raise ValueError('Cannot delete already deleted attachment '
+                             'version')
+
+        deletion_time = datetime.now(utc)
 
         @self.env.with_transaction(db)
         def do_delete(db):
@@ -252,16 +262,21 @@ class Attachment(object):
                 cursor.execute("""SELECT filename, version, status
                                FROM attachment
                                WHERE type=%s AND id=%s and filename=%s
+                               AND deleted IS NULL
                                """,
                                (self.parent_realm, self.parent_id,
                                 self.filename))
                 versions = cursor.fetchall()
 
-                # Delete records for attachment from the database
-                cursor.execute("""DELETE FROM attachment
+                # Mark attachment records as deleted
+                cursor.execute("""UPDATE attachment
+                               SET status=%s, author=%s, deleted=%s
                                WHERE type=%s AND id=%s AND filename=%s
+                               AND deleted IS NULL
                                """,
-                               (self.parent_realm, self.parent_id,
+                               ('deleted', authname,
+                                to_utimestamp(deletion_time),
+                                self.parent_realm, self.parent_id,
                                 self.filename))
 
                 # For each deleted record delete the associated file
@@ -282,14 +297,21 @@ class Attachment(object):
                 # Update in memory instance of attachment
                 self.version = 0
                 self.status = 'deleted'
+                self.deleted = deletion_time
             else:
-                # Delete this version of the attachment in database and on disk
-                cursor.execute("""DELETE FROM attachment 
+                # Mark this version of the attachment deleted in database
+                cursor.execute("""UPDATE attachment
+                               SET status=%s, author=%s, deleted=%s
                                WHERE type=%s AND id=%s 
                                AND filename=%s AND version=%s
+                               AND deleted IS NULL
                                """,
-                               (self.parent_realm, self.parent_id, 
+                               ('deleted', authname,
+                                to_utimestamp(deletion_time),
+                                self.parent_realm, self.parent_id,
                                 self.filename, version))
+
+                # Delete the associated file
                 if os.path.isfile(self.path):
                     try:
                         os.unlink(self.path)
@@ -308,6 +330,7 @@ class Attachment(object):
                 except ResourceNotFound:
                     self.version = 0
                     self.status = 'deleted'
+                    self.deleted = deletion_time
 
         if not self.version:
             self.env.log.info('Attachment removed: %s', self.title)
@@ -448,11 +471,11 @@ class Attachment(object):
                 version = self._next_version(cursor, self.parent_realm,
                                              self.parent_id, filename)
                 cursor.execute("INSERT INTO attachment "
-                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                                (self.parent_realm, self.parent_id, 
                                 filename, version,
                                 self.size, to_utimestamp(t), self.description,
-                                self.author, self.ipnr, None))
+                                self.author, self.ipnr, None, None))
 
                 # Save the new attachment file
                 shutil.copyfileobj(fileobj, targetfile)
@@ -462,6 +485,7 @@ class Attachment(object):
                 self.resource.id = self.filename = filename
                 self.version = version # Also sets self.resource.version
                 self.status = None
+                self.deleted = None
 
                 self.env.log.info('New attachment: %s version %d by %s',
                                   self.title, self.version, self.author)
@@ -494,9 +518,10 @@ class Attachment(object):
         cursor = db.cursor()
         cursor.execute("""
                 SELECT filename, version, description, size, time, author,
-                       ipnr, status
+                       ipnr, status, deleted
                 FROM ATTACHMENT
                 WHERE type=%s AND id=%s and filename=%s and version<=%s
+                AND deleted IS NULL
                 ORDER BY version DESC
                 """,
                 (self.parent_realm, self.parent_id, self.filename, version))
@@ -518,7 +543,7 @@ class Attachment(object):
         cursor.execute("""
                 SELECT version
                 FROM ATTACHMENT
-                WHERE type=%s AND id=%s and filename=%s
+                WHERE type=%s AND id=%s and filename=%s AND deleted IS NULL
                 ORDER BY version
                 """,
                 (self.parent_realm, self.parent_id, self.filename))
@@ -543,11 +568,12 @@ class Attachment(object):
         # Query highest numbered version of each attachment of the resource
         cursor.execute("""
                 SELECT filename, version, description, size, time, author,
-                       ipnr, status
+                       ipnr, status, deleted
                 FROM attachment
                 JOIN (SELECT type AS c_type, id AS c_id, 
                              filename AS c_filename, MAX(version) AS c_version
                       FROM attachment
+                      WHERE deleted IS NULL
                       GROUP BY c_type, c_id, c_filename) AS current
                      ON type = c_type AND id = c_id
                         AND filename = c_filename AND version = c_version

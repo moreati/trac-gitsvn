@@ -80,15 +80,17 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual(None, attachment.author)
         self.assertEqual(None, attachment.ipnr)
         self.assertEqual(None, attachment.status)
+        self.assertEqual(None, attachment.deleted)
 
     def test_existing_attachment(self):
         t = datetime(2001, 1, 1, 1, 1, 1, 0, utc)
         db = self.env.get_db_cnx()
         cursor = db.cursor()
         cursor.execute("""INSERT INTO attachment
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                       VALUES (%s, %s, %s, %s, %s, %s,
+                               %s, %s, %s, %s, %s)""",
                        ('ticket', '42', 'foo.txt', 1, 8, to_utimestamp(t), 
-                        'A comment', 'joe', '::1', None))
+                        'A comment', 'joe', '::1', None, None))
 
         attachment = Attachment(self.env, 'ticket', 42, 'foo.txt')
         self.assertEqual('foo.txt', attachment.filename)
@@ -100,6 +102,7 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual('joe', attachment.author)
         self.assertEqual('::1', attachment.ipnr)
         self.assertEqual(None, attachment.status)
+        self.assertEqual(None, attachment.deleted)
         
         resource = Resource('ticket', 42).child('attachment', 'foo.txt')
         attachment = Attachment(self.env, resource)
@@ -112,6 +115,7 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual('joe', attachment.author)
         self.assertEqual('::1', attachment.ipnr)
         self.assertEqual(None, attachment.status)
+        self.assertEqual(None, attachment.deleted)
 
     def test_get_path(self):
         attachment = Attachment(self.env, 'ticket', 42)
@@ -250,7 +254,7 @@ class AttachmentTestCase(unittest.TestCase):
 
         attachment = Attachment(self.env, 'ticket', 42)
         attachment.insert('foo.txt', StringIO(''), 0)
-        self.assertEqual(1, attachment.version)
+        self.assertEqual(2, attachment.version)
         self.assertEqual(os.path.join(self.attachments_dir,
                                       'ticket', '42', attachment.name),
                          attachment.path)
@@ -263,7 +267,7 @@ class AttachmentTestCase(unittest.TestCase):
 
         attachment = Attachment(self.env, 'ticket', 42)
         attachment.insert('foo.txt', StringIO(''), 0)
-        self.assertEqual(1, attachment.version)
+        self.assertEqual(2, attachment.version)
         self.assertEqual(os.path.join(self.attachments_dir,
                                       'ticket', '42', attachment.name),
                          attachment.path)
@@ -281,7 +285,7 @@ class AttachmentTestCase(unittest.TestCase):
         attachment = Attachment(self.env, 'ticket', 42, filename='foo.txt')
         attachment.insert('foo.txt', StringIO(''), 0, replace=True,
                            archive=True)
-        self.assertEqual(2, attachment.version)
+        self.assertEqual(3, attachment.version)
         self.assertEqual(os.path.join(self.attachments_dir,
                                       'ticket', '42', attachment.name),
                          attachment.path)
@@ -338,6 +342,15 @@ class AttachmentTestCase(unittest.TestCase):
         attachment1.delete()
         attachment2.delete()
 
+        self.assertEqual(0, attachment1.version)
+        self.assertEqual(0, attachment1.version)
+        self.assertEqual(False, attachment1.exists)
+        self.assertEqual(False, attachment2.exists)
+        self.assertEqual(True, isinstance(attachment1.deleted, datetime))
+        self.assertEqual(True, isinstance(attachment2.deleted, datetime))
+        self.assertEqual('deleted', attachment1.status)
+        self.assertEqual('deleted', attachment2.status)
+
         assert not os.path.exists(attachment1.path)
         assert not os.path.exists(attachment2.path)
 
@@ -368,6 +381,7 @@ class AttachmentTestCase(unittest.TestCase):
         attachment.delete(version=attachment.version)
         self.assertEqual(1, attachment.version)
         self.assertEqual(True, attachment.exists)
+        self.assertEqual(None, attachment.deleted)
         assert not os.path.exists(attachment.path) #TODO Break with archiving?
 
         attachments = list(Attachment.select(self.env, 'wiki', 'SomePage'))
@@ -426,6 +440,7 @@ class AttachmentTestCase(unittest.TestCase):
         self.assertEqual(False, attachment.exists)
         self.assertEqual(0, attachment.version)
         self.assertEqual('deleted', attachment.status)
+        self.assertEqual(True, isinstance(attachment.deleted, datetime))
 
     def test_reparent(self):
         attachment1 = Attachment(self.env, 'wiki', 'SomePage')
