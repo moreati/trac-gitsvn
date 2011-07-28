@@ -1182,19 +1182,21 @@ class AttachmentModule(Component):
                 mime_type and not mime_type.startswith('text/plain')):
                 plaintext_href = get_resource_url(self.env,
                                                   attachment.resource,
-                                                  req.href, format='txt')
+                                                  req.href, format='txt', 
+                                                  version=attachment.version)
                 add_link(req, 'alternate', plaintext_href, _('Plain Text'),
                          mime_type)
 
             # add ''Original Format'' alternate link (always)
             raw_href = get_resource_url(self.env, attachment.resource,
-                                        req.href, format='raw')
+                                        req.href, format='raw', 
+                                        version=attachment.version)
             add_link(req, 'alternate', raw_href, _('Original Format'),
                      mime_type)
 
-            self.log.debug("Rendering preview of file %s with mime-type %s"
-                           % (attachment.filename, mime_type))
-
+            self.log.debug("Rendering preview of file %s@%d with mime-type %s"
+                           % (attachment.filename, attachment.version, 
+                              mime_type))
             data['preview'] = mimeview.preview_data(
                 Context.from_request(req, attachment.resource), fd,
                 os.fstat(fd.fileno()).st_size, mime_type,
