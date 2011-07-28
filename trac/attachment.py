@@ -31,7 +31,7 @@ from trac.config import BoolOption, IntOption
 from trac.core import *
 from trac.env import IEnvironmentSetupParticipant
 from trac.mimeview import *
-from trac.perm import PermissionError, IPermissionPolicy
+from trac.perm import PermissionError, IPermissionPolicy, IPermissionRequestor
 from trac.resource import *
 from trac.search import search_to_sql, shorten_result
 from trac.util import get_reporter_id, overwrite_file, create_new_file, \
@@ -636,7 +636,7 @@ class AttachmentModule(Component):
 
     implements(IEnvironmentSetupParticipant, IRequestHandler,
                INavigationContributor, IWikiSyntaxProvider,
-               IResourceManager)
+               IResourceManager, IPermissionRequestor)
 
     change_listeners = ExtensionPoint(IAttachmentChangeListener)
     manipulators = ExtensionPoint(IAttachmentManipulator)
@@ -672,6 +672,11 @@ class AttachmentModule(Component):
     archive = BoolOption('attachment', 'archive', 'false',
         """Move an attachment into the archive directory when it replaced by
         a newer version.""")
+
+    # IPermissionRequestor methods
+
+    def get_permission_actions(self):
+        return ['ATTACHMENT_DELETE']
 
     # IEnvironmentSetupParticipant methods
 
@@ -1252,7 +1257,7 @@ class AttachmentModule(Component):
 
 class LegacyAttachmentPolicy(Component):
 
-    implements(IPermissionPolicy)
+    implements(IPermissionPolicy, IPermissionRequestor)
     
     delegates = ExtensionPoint(ILegacyAttachmentPolicyDelegate)
 
@@ -1285,6 +1290,11 @@ class LegacyAttachmentPolicy(Component):
                         resource, perm)
                 if decision is not None:
                     return decision
+
+    # IPermissionRequestor methods
+
+    def get_permission_actions(self):
+        return []
 
 
 class AttachmentAdmin(Component):
