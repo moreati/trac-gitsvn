@@ -245,6 +245,8 @@ class Attachment(object):
         def do_delete(db):
             cursor = db.cursor()
             if version is None:
+                # Retrieve list of versions present in database before the
+                # the records are deleted
                 cursor.execute("""SELECT filename, version, status
                                FROM attachment
                                WHERE type=%s AND id=%s and filename=%s
@@ -253,12 +255,14 @@ class Attachment(object):
                                 self.filename))
                 versions = cursor.fetchall()
 
+                # Delete records for attachment from the database
                 cursor.execute("""DELETE FROM attachment
                                WHERE type=%s AND id=%s AND filename=%s
                                """,
                                (self.parent_realm, self.parent_id,
                                 self.filename))
 
+                # For each deleted record delete the associated file
                 for fname, fversion, fstatus in versions:
                     path = self._get_path(self.parent_realm, self.parent_id,
                                           fname, fversion, fstatus)
@@ -273,9 +277,11 @@ class Attachment(object):
                                            path, excep)
                         raise #TracError(_('Could not delete attachment'))
 
+                # Update in memory instance of attachment
                 self.version = 0
                 self.status = 'deleted'
             else:
+                # Delete this version of the attachment in database and on disk
                 cursor.execute("""DELETE FROM attachment 
                                WHERE type=%s AND id=%s 
                                AND filename=%s AND version=%s
@@ -291,6 +297,9 @@ class Attachment(object):
                                            'file %s: %s',
                                            self.path, excep)
                         raise TracError(_('Could not delete attachment'))
+
+                # The current version has been deleted, revert to the previous
+                # version if one is found
                 self._old_version = version
                 try:
                     self._fetch(self.filename, version=None, db=db)
