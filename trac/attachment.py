@@ -72,44 +72,47 @@ class IAttachmentChangeListener(Interface):
 
 
 class IAttachmentManipulator(Interface):
-    """Extension point interface for components that need to manipulate
-    attachments.
+    """Extension point interface for components that need to
+    manipulate attachments.
     
-    Unlike change listeners, a manipulator can reject changes being committed
-    to the database."""
+    Unlike change listeners, a manipulator can reject changes being
+    committed to the database."""
 
     def prepare_attachment(req, attachment, fields):
         """Not currently called, but should be provided for future
         compatibility."""
 
     def validate_attachment(req, attachment):
-        """Validate an attachment after upload but before being stored in Trac
-        environment.
+        """Validate an attachment after upload but before being stored
+        in Trac environment.
         
-        Must return a list of `(field, message)` tuples, one for each problem
-        detected. `field` can be any of `description`, `username`, `filename`,
-        `content`, or `None` to indicate an overall problem with the
-        attachment. Therefore, a return value of `[]` means everything is
-        OK."""
+        Must return a list of ``(field, message)`` tuples, one for
+        each problem detected. ``field`` can be any of
+        ``description``, ``username``, ``filename``, ``content``, or
+        `None` to indicate an overall problem with the
+        attachment. Therefore, a return value of ``[]`` means
+        everything is OK."""
 
 class ILegacyAttachmentPolicyDelegate(Interface):
-    """Interface that can be used by plugins to seemlessly participate to the
-       legacy way of checking for attachment permissions.
+    """Interface that can be used by plugins to seemlessly participate
+       to the legacy way of checking for attachment permissions.
 
-       This should no longer be necessary once it becomes easier to 
+       This should no longer be necessary once it becomes easier to
        setup fine-grained permissions in the default permission store.
     """
 
     def check_attachment_permission(action, username, resource, perm):
-        """Return the usual True/False/None security policy decision
-           appropriate for the requested action on an attachment.
+        """Return the usual `True`/`False`/`None` security policy
+           decision appropriate for the requested action on an
+           attachment.
 
             :param action: one of ATTACHMENT_VIEW, ATTACHMENT_CREATE,
                                   ATTACHMENT_DELETE
             :param username: the user string
-            :param resource: the `Resource` for the attachment. Note that when
-                             ATTACHMENT_CREATE is checked, the resource `.id`
-                             will be `None`. 
+            :param resource: the `~trac.resource.Resource` for the
+                             attachment. Note that when
+                             ATTACHMENT_CREATE is checked, the
+                             resource ``.id`` will be `None`.
             :param perm: the permission cache for that username and resource
             """
 
@@ -203,7 +206,7 @@ class Attachment(object):
         cursor.close()
         if not row:
             self.filename = filename
-            raise ResourceNotFound(_("Attachment '%(title)s' does not exist.",
+            raise ResourceNotFound(_("Attachment '%(title)s' does not exist.", 
                                      title=self.title),
                                    _('Invalid Attachment'))
         self._from_database(*row)
@@ -344,7 +347,7 @@ class Attachment(object):
                     listener.attachment_version_deleted(self, self._old_version)
 
     def reparent(self, new_realm, new_id):
-        assert self.filename, 'Cannot reparent non-existent attachment'
+        assert self.filename, "Cannot reparent non-existent attachment"
         new_id = unicode(new_id)
         
         @self.env.with_transaction()
@@ -368,10 +371,10 @@ class Attachment(object):
                 try:
                     os.rename(self.path, new_path)
                 except OSError, e:
-                    self.env.log.error('Failed to move attachment file %s: %s',
+                    self.env.log.error("Failed to move attachment file %s: %s",
                                        self.path,
                                        exception_to_unicode(e, traceback=True))
-                    raise TracError(_('Could not reparent attachment %(name)s',
+                    raise TracError(_("Could not reparent attachment %(name)s",
                                       name=self.filename))
 
         old_realm, old_id = self.parent_realm, self.parent_id
@@ -379,7 +382,7 @@ class Attachment(object):
         self.resource = Resource(new_realm, new_id).child('attachment',
                                                           self.filename)
         
-        self.env.log.info('Attachment reparented: %s' % self.title)
+        self.env.log.info("Attachment reparented: %s" % self.title)
 
         for listener in AttachmentModule(self.env).change_listeners:
             if hasattr(listener, 'attachment_reparented'):
@@ -741,23 +744,21 @@ class AttachmentModule(Component):
             # there's a trailing '/', show the list
             return self._render_list(req, parent)
 
-        attachment = Attachment(self.env, parent.child('attachment', filename))
-        versioned_attachment = \
-            Attachment(self.env, parent.child('attachment', filename, version))
+        attachment = Attachment(self.env, parent.child('attachment', filename, version))
         
         if req.method == 'POST':
             if action == 'new':
-                self._do_save(req, versioned_attachment)
+                self._do_save(req, attachment)
             elif action == 'delete':
-                self._do_delete(req, versioned_attachment)
+                self._do_delete(req, attachment)
         elif action == 'delete':
-            data = self._render_confirm_delete(req, versioned_attachment)
+            data = self._render_confirm_delete(req, attachment)
         elif action == 'new':
-            data = self._render_form(req, versioned_attachment)
+            data = self._render_form(req, attachment)
         elif action == 'history':
-            return self._render_history(req, versioned_attachment)
+            return self._render_history(req, attachment)
         else:
-            data = self._render_view(req, versioned_attachment)
+            data = self._render_view(req, attachment)
 
         add_stylesheet(req, 'common/css/code.css')
         return 'attachment.html', data, None
@@ -1274,9 +1275,9 @@ class LegacyAttachmentPolicy(Component):
         if legacy_action:
             decision = legacy_action in perm(resource.parent)
             if not decision:
-                self.env.log.debug('LegacyAttachmentPolicy denied %s '
-                                   'access to %s. User needs %s' %
-                                   (username, resource, legacy_action))
+                self.log.debug('LegacyAttachmentPolicy denied %s access to '
+                               '%s. User needs %s' %
+                               (username, resource, legacy_action))
             return decision
         else:
             for d in self.delegates:
